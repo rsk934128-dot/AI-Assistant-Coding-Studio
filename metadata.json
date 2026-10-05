@@ -1,0 +1,6 @@
+{
+  "name": "AI Assistant & Coding Studio",
+  "description": "বাংলা ও ইংরেজি ভাষায় কোডিং, লেখালেখি, গবেষণা, রিয়েল-টাইম সার্চ গ্রাউন্ডিং এবং ফায়ারবেস ক্লাউড স্টোরেজ ও সিঙ্ক সহ পূর্ণাঙ্গ এআই অ্যাসিস্ট্যান্ট।",
+  "requestFramePermissions": ["microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
