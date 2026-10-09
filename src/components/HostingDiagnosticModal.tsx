@@ -54,11 +54,37 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
   const [testResult, setTestResult] = useState<TestResult>({ loading: false });
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
+  const handleClearBrowserCacheAndSW = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch (e) {
+      console.warn('Cache clearing error:', e);
+    }
+    window.location.reload();
+  };
+
   const fetchHealth = async () => {
     setLoadingHealth(true);
     setHealthError(null);
     try {
-      const res = await fetch('/api/health');
+      const res = await fetch(`/api/health?_t=${Date.now()}`, {
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+        cache: 'no-store',
+      });
       if (res.status === 404) {
         throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। অ্যাপটি কেবল স্ট্যাটিক হোস্টিংয়ে রান করছে, ব্যাকএন্ড Express সার্ভার বা সার্ভারলেস ফাংশন চালু নেই।');
       }
@@ -70,7 +96,11 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
       try {
         data = JSON.parse(rawText);
       } catch {
-        throw new Error('সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে। এটি নির্দেশ করে অ্যাপটি শুধু স্ট্যাটিক সাইট হিসেবে রান করছে এবং ব্যাকএন্ড API চালু নেই।');
+        // If HTML was received, auto-cleanup any stale service workers
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+        }
+        throw new Error('সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে। এটি ব্রাউজার সার্ভিস ওয়ার্কার বা ক্যাশ ইন্টারসেপশনের কারণে হতে পারে। নিচের "ক্যাশ ও SW রিসেট" বাটনে ক্লিক করে রিলোড দিন।');
       }
       setHealth(data);
     } catch (err: any) {
@@ -85,17 +115,42 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
   const runLiveTest = async () => {
     setTestResult({ loading: true });
     try {
-      let res = await fetch('/api/health/test', { method: 'POST' });
+      let res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+        cache: 'no-store',
+      });
       if (res.status === 405) {
         // Fallback to GET if web server / proxy doesn't allow POST
-        res = await fetch('/api/health/test', { method: 'GET' });
+        res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          },
+          cache: 'no-store',
+        });
       }
       const rawText = await res.text();
       let data: any = null;
       try {
         data = JSON.parse(rawText);
       } catch {
-        // Returned HTML (e.g. static CDN page)
+        // Returned HTML (e.g. static CDN page or Service Worker interception)
+        if (rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE') || rawText.includes('<!doctype')) {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+          }
+          setTestResult({
+            loading: false,
+            success: false,
+            error: 'সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে (ব্রাউজার সার্ভিস ওয়ার্কার বা স্ট্যাটিক ক্যাশ ইন্টারসেপ্ট করেছে)। নিচে "ক্যাশ ও SW রিসেট" চাপুন।',
+          });
+          return;
+        }
       }
 
       if (!res.ok || !data?.success) {
@@ -276,12 +331,22 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                     <span className="text-xs">সার্ভার স্ট্যাটাস যাচাই করা হচ্ছে...</span>
                   </div>
                 ) : healthError ? (
-                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs space-y-1">
+                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs space-y-2">
                     <div className="flex items-center gap-1.5 font-bold">
                       <XCircle className="w-4 h-4 shrink-0 text-rose-600" />
                       <span>সার্ভারের সাথে সংযোগ ব্যর্থ</span>
                     </div>
                     <p className="leading-relaxed pl-5">{healthError}</p>
+                    <div className="pl-5 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleClearBrowserCacheAndSW}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>ব্রাউজার ক্যাশ ও সার্ভিস ওয়ার্কার রিসেট করুন</span>
+                      </button>
+                    </div>
                   </div>
                 ) : health ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -382,6 +447,16 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                           <span>এআই সংযোগ ব্যর্থ হয়েছে</span>
                         </div>
                         <p className="mt-1">{testResult.error}</p>
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={handleClearBrowserCacheAndSW}
+                            className="px-2.5 py-1 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-medium text-[11px] inline-flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                            <span>ক্যাশ ও সার্ভিস ওয়ার্কার রিসেট করুন</span>
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
