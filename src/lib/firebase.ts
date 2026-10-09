@@ -25,13 +25,13 @@ import { ChatSession, ChatMessage } from '../types';
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// CRITICAL: Initialize Firestore with auto-detect long polling for maximum reliability across networks
+// CRITICAL: Initialize Firestore with forced long polling to prevent 10s WebSocket timeouts in iframes & proxies
 let firestoreDb: ReturnType<typeof getFirestore>;
 try {
   firestoreDb = initializeFirestore(
     app,
     {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     },
     firebaseConfig.firestoreDatabaseId
   );

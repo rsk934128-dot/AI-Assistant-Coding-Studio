@@ -30,6 +30,7 @@ app.use((req, res, next) => {
     (req.url.startsWith('/health') ||
       req.url.startsWith('/chat') ||
       req.url.startsWith('/tts') ||
+      req.url.startsWith('/transcribe') ||
       req.url.startsWith('/web') ||
       req.url.startsWith('/agent') ||
       req.url.startsWith('/music') ||
@@ -58,7 +59,7 @@ function getAIClient() {
 }
 
 // Health check endpoint with hosting diagnostics
-app.get('/api/health', (req, res) => {
+app.all('/api/health', (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   res.json({
     status: 'ok',
@@ -277,7 +278,7 @@ async function fetchContentWithResilience(
 }
 
 // Quick live connection test endpoint for troubleshooting hosted environments
-app.post('/api/health/test', async (req, res) => {
+app.all('/api/health/test', async (req, res) => {
   const startTime = Date.now();
   try {
     const ai = getAIClient();
@@ -300,6 +301,84 @@ app.post('/api/health/test', async (req, res) => {
     res.status(500).json({
       success: false,
       latencyMs: latency,
+      error: formatFriendlyErrorMessage(err),
+      rawMessage: err?.message || String(err),
+    });
+  }
+});
+
+// Audio Transcription API using Gemini Multimodal Audio
+app.post('/api/transcribe', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { audioData, mimeType = 'audio/webm', language = 'bn-BD' } = req.body;
+    if (!audioData) {
+      return res.status(400).json({ error: 'No audio data provided' });
+    }
+
+    // Strip data URI prefix if present
+    const base64Audio = audioData.includes('base64,')
+      ? audioData.split('base64,')[1]
+      : audioData;
+
+    // Clean MIME type (remove parameters like codecs=opus)
+    const cleanMimeType = (mimeType || 'audio/webm').split(';')[0].trim();
+
+    const ai = getAIClient();
+    const isBengali = language && (language.startsWith('bn') || language === 'bn');
+    const promptText = isBengali
+      ? 'Transcribe this spoken audio accurately. If spoken in Bengali (বাংলা), transcribe verbatim in Bengali script. If spoken in English, transcribe verbatim in English. If mixed (Banglish/code terms), capture both accurately. Output ONLY the raw transcribed text. Do NOT add quotes, formatting, or commentary.'
+      : 'Transcribe this spoken audio accurately. Output ONLY the verbatim transcribed text without quotes, formatting, or commentary.';
+
+    // Try gemini-3.5-transcribe first (dedicated audio transcription model from SKILL.md),
+    // fallback to gemini-3.8-flash / gemini-flash-latest
+    const modelsToTry = ['gemini-3.5-transcribe', 'gemini-3.8-flash', 'gemini-flash-latest'];
+    let text = '';
+    let lastErr: any = null;
+
+    for (const model of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    data: base64Audio,
+                    mimeType: cleanMimeType,
+                  },
+                },
+                {
+                  text: promptText,
+                },
+              ],
+            },
+          ],
+        });
+        text = response.text?.trim() || '';
+        if (text) break;
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`Model ${model} transcription attempt failed:`, err?.message || err);
+      }
+    }
+
+    if (!text && lastErr) {
+      throw lastErr;
+    }
+
+    const latencyMs = Date.now() - startTime;
+    res.json({
+      success: true,
+      text: text || '',
+      latencyMs,
+    });
+  } catch (err: any) {
+    console.error('Audio transcription failed:', err);
+    res.status(500).json({
+      success: false,
       error: formatFriendlyErrorMessage(err),
       rawMessage: err?.message || String(err),
     });

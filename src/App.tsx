@@ -198,8 +198,13 @@ export default function App() {
             }
           }
         }
-      } catch (err) {
-        console.error('Failed to sync sessions with Firestore:', err);
+      } catch (err: any) {
+        const msg = err?.message || String(err);
+        if (msg.includes('offline') || msg.includes('Could not reach') || msg.includes('unavailable')) {
+          console.info('Initial cloud sync deferred: Firestore operating in offline cache mode.');
+        } else {
+          console.error('Failed to sync sessions with Firestore:', err);
+        }
       } finally {
         if (!isCancelled) setIsSyncing(false);
       }
@@ -217,8 +222,13 @@ export default function App() {
     if (!user || !activeSession || activeSession.messages.length === 0) return;
 
     const timer = setTimeout(() => {
-      saveSessionToCloud(user.uid, activeSession).catch((err) => {
-        console.error('Auto-sync to Firestore failed:', err);
+      saveSessionToCloud(user.uid, activeSession).catch((err: any) => {
+        const msg = err?.message || String(err);
+        if (msg.includes('offline') || msg.includes('Could not reach') || msg.includes('unavailable')) {
+          console.info('Auto-sync deferred: Firestore is operating in offline mode.');
+        } else {
+          console.error('Auto-sync to Firestore failed:', err);
+        }
       });
     }, 1500);
 

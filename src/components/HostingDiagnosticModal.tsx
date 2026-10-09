@@ -85,20 +85,26 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
   const runLiveTest = async () => {
     setTestResult({ loading: true });
     try {
-      const res = await fetch('/api/health/test', { method: 'POST' });
+      let res = await fetch('/api/health/test', { method: 'POST' });
+      if (res.status === 405) {
+        // Fallback to GET if web server / proxy doesn't allow POST
+        res = await fetch('/api/health/test', { method: 'GET' });
+      }
       const rawText = await res.text();
       let data: any = null;
       try {
         data = JSON.parse(rawText);
       } catch {
-        // Returned HTML (e.g. 404 from Vercel/Cloudflare CDN)
+        // Returned HTML (e.g. static CDN page)
       }
 
       if (!res.ok || !data?.success) {
         let errMessage = data?.error || data?.rawMessage;
         if (!errMessage) {
           if (res.status === 404) {
-            errMessage = 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)। ব্যাকএন্ড Express সার্ভার বা API ফাংশন চালু নেই। Vercel বা অন্য হোস্টিংয়ে নোড সার্ভিস রান করুন।';
+            errMessage = 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)। ব্যাকএন্ড Express সার্ভার বা API চালু নেই।';
+          } else if (res.status === 405) {
+            errMessage = 'সার্ভার মেথড অনুমোদিত নয় (HTTP 405 Method Not Allowed)। এটি ঘটে যখন হোস্টিং শুধুমাত্র স্ট্যাটিক ফাইল পরিবেশন করছে এবং Express ব্যাকএন্ড প্রক্সি কনফিগার করা নেই।';
           } else {
             errMessage = `সার্ভারের সাথে সংযোগ ব্যর্থ (HTTP ${res.status})`;
           }

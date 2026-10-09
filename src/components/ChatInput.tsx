@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   Send, 
@@ -19,10 +19,12 @@ import {
   Youtube,
   Play,
   Maximize2,
-  HardDrive
+  HardDrive,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { AssistantMode } from '../types';
-import { useVoiceInput, VoiceLanguage } from '../hooks/useVoiceInput';
+import { useMediaRecorderVoice, VoiceLanguage } from '../hooks/useMediaRecorderVoice';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { extractYouTubeVideoId } from '../utils/youtube';
 import { AudioFrequencyWave } from './AudioFrequencyWave';
@@ -57,30 +59,40 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const musicPlayer = useMusicPlayer();
   const detectedYouTubeId = extractYouTubeVideoId(input);
 
+  const [voiceLang, setVoiceLang] = useState<VoiceLanguage>('bn-BD');
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
   const {
-    isListening,
-    language,
-    setLanguage,
-    toggleListening,
-    stopListening,
-    errorMessage,
-    setErrorMessage,
+    isRecording,
+    isTranscribing,
+    recordingDuration,
     audioLevel,
     frequencyData,
-    interimText,
-  } = useVoiceInput({
-    defaultLang: 'bn-BD',
-    onTranscriptUpdate: (transcript) => {
-      setInput(transcript);
-    },
-    onSendVoiceCommand: (finalText) => {
-      setInput(finalText);
+    errorMessage,
+    setErrorMessage,
+    isHoldMode,
+    stopRecording,
+    cancelRecording,
+    handleHoldStart,
+    handleHoldEnd,
+    toggleRecording,
+  } = useMediaRecorderVoice({
+    language: voiceLang,
+    onTranscriptSuccess: (transcript) => {
+      setInput((prev) => {
+        const trimmed = prev.trim();
+        return trimmed ? `${trimmed} ${transcript}` : transcript;
+      });
+      setSuccessToast('ভয়েস সফলভাবে টেক্সটে রূপান্তরিত হয়েছে!');
+      setTimeout(() => setSuccessToast(null), 3500);
       setTimeout(() => {
-        onSend(finalText);
-      }, 100);
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 60);
     },
-    onClearVoiceCommand: () => {
-      setInput('');
+    onError: (err) => {
+      console.warn('Voice recording error:', err);
     },
   });
 
@@ -97,7 +109,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!isGenerating && input.trim()) {
-        if (isListening) stopListening();
+        if (isRecording) stopRecording();
         onSend();
       }
     }
@@ -121,11 +133,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     e.target.value = '';
   };
 
-  const handleVoiceToggle = () => {
-    setErrorMessage(null);
-    toggleListening(input);
-  };
-
   const modeButtons: Array<{ id: AssistantMode; label: string; icon: any }> = [
     { id: 'general', label: 'সাধারণ', icon: Sparkles },
     { id: 'citizen', label: 'জনসেবা ও A-Z সমাধান', icon: ShieldCheck },
@@ -138,7 +145,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className="border-t border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-3 pt-2 pb-3.5 sm:px-6 md:px-8 md:pt-2.5 md:pb-6 lg:pb-7 transition-all shrink-0">
       <div className="max-w-4xl mx-auto space-y-2">
-        {/* Error notification if microphone is blocked */}
+        {/* Error notification if microphone is blocked or failed */}
         {errorMessage && (
           <div
             id="voice-mic-error-banner"
@@ -150,10 +157,65 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </div>
             <button
               onClick={() => setErrorMessage(null)}
-              className="p-1 hover:bg-amber-200/50 dark:hover:bg-amber-900/60 rounded text-amber-700 dark:text-amber-300"
+              className="p-1 hover:bg-amber-200/50 dark:hover:bg-amber-900/60 rounded text-amber-700 dark:text-amber-300 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* Success toast after voice transcription */}
+        {successToast && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 shadow-xs">
+            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>{successToast}</span>
+          </div>
+        )}
+
+        {/* AI Audio Transcribing Banner */}
+        {isTranscribing && (
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-400/40 dark:border-emerald-800/60 text-xs text-emerald-700 dark:text-emerald-300 shadow-xs">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+            <span className="font-semibold">জেমিনি এআই দিয়ে অডিও ট্রান্সক্রাইব হচ্ছে... (AI transcribing speech to text)</span>
+          </div>
+        )}
+
+        {/* Active MediaRecorder Recording Status Bar with Timer and Cancel */}
+        {isRecording && (
+          <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-400/40 dark:border-rose-800/60 text-xs text-rose-700 dark:text-rose-300 shadow-xs animate-pulse">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600" />
+              </span>
+              <span className="font-bold tracking-wider font-mono">
+                00:{String(recordingDuration).padStart(2, '0')}
+              </span>
+              <span className="text-stone-400 hidden sm:inline">|</span>
+              <span className="font-medium text-[11px] text-stone-700 dark:text-stone-300">
+                {isHoldMode ? 'চেপে ধরে কথা বলুন (ছেড়ে দিলে টেক্সট হবে)' : 'কথা বলা শেষে সম্পন্ন বা স্টপ চাপুন'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={cancelRecording}
+                className="px-2 py-1 rounded-lg bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                title="রেকর্ডিং বাতিল করুন"
+              >
+                <X className="w-3 h-3 text-stone-500" />
+                <span>বাতিল</span>
+              </button>
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer shadow-xs transition-colors"
+                title="রেকর্ডিং সমাপ্ত করে ট্রান্সক্রাইব করুন"
+              >
+                <Check className="w-3 h-3" />
+                <span>সম্পন্ন</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -161,17 +223,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <AudioFrequencyWave
           frequencyData={frequencyData}
           audioLevel={audioLevel}
-          isListening={isListening}
-          language={language}
-          interimText={interimText}
-          onStop={stopListening}
+          isListening={isRecording}
+          language={voiceLang}
+          interimText={isHoldMode ? "চেপে ধরে কথা বলুন, ছেড়ে দিলে ট্রান্সক্রাইব হবে..." : "কথা বলা শেষ হলে স্টপ বাটনে ক্লিক করুন..."}
+          onStop={stopRecording}
           onSend={() => {
-            if (input.trim()) {
-              stopListening();
-              onSend();
-            }
+            stopRecording();
           }}
-          onLanguageChange={(newLang) => setLanguage(newLang)}
+          onLanguageChange={(newLang) => setVoiceLang(newLang)}
         />
 
         {/* Mode & Tool Toggles */}
@@ -258,7 +317,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         {/* Input Text Box */}
         <div className={`relative rounded-2xl border bg-white dark:bg-stone-950 shadow-xs transition-all ${
-          isListening 
+          isRecording 
             ? 'border-rose-500 dark:border-rose-500 ring-2 ring-rose-500/30 shadow-[0_0_16px_rgba(244,63,94,0.25)]'
             : 'border-stone-300 dark:border-stone-700 focus-within:border-emerald-500 dark:focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-500/20'
         }`}>
@@ -270,8 +329,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              isListening
-                ? 'কথা বলুন... আপনার কণ্ঠস্বর টেক্সট আকারে এখানে লেখা হচ্ছে...'
+              isRecording
+                ? 'কথা বলুন... আপনার কণ্ঠস্বর রেকর্ড হচ্ছে এবং ছেড়ে দিলে টেক্সট আকারে রূপান্তর হবে...'
                 : 'গান বা ইউটিউব ভিডিও লিঙ্ক, ওয়েবসাইট সন্ধান, কোডিং বা যেকোনো প্রশ্ন লিখুন...'
             }
             className="w-full resize-none bg-transparent px-4 pt-3.5 pb-11 text-sm text-stone-900 dark:text-stone-100 placeholder-stone-400 focus:outline-none leading-relaxed"
@@ -309,52 +368,79 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </button>
               )}
 
-              {/* Microphone Voice Command Toggle Button with Visual Pulse Animation */}
-              <div className="relative inline-flex items-center">
-                {isListening && (
+              {/* Hold to Record Microphone Button using MediaRecorder API */}
+              <div className="relative inline-flex items-center select-none">
+                {isRecording && (
                   <>
                     {/* Multi-layered expanding ripple pulse rings */}
-                    <span className="absolute -inset-1 rounded-xl bg-rose-500/35 animate-ping pointer-events-none" />
-                    <span className="absolute -inset-2 rounded-xl bg-rose-500/15 animate-pulse blur-xs pointer-events-none" />
+                    <span className="absolute -inset-1 rounded-xl bg-rose-500/40 animate-ping pointer-events-none" />
+                    <span className="absolute -inset-2 rounded-xl bg-rose-500/20 animate-pulse blur-xs pointer-events-none" />
                   </>
                 )}
 
                 <motion.button
                   id="voice-input-mic-btn"
-                  onClick={handleVoiceToggle}
+                  type="button"
+                  onMouseDown={(e) => {
+                    if (e.button === 0) handleHoldStart(e);
+                  }}
+                  onMouseUp={(e) => {
+                    if (e.button === 0) handleHoldEnd(e);
+                  }}
+                  onTouchStart={(e) => {
+                    handleHoldStart(e);
+                  }}
+                  onTouchEnd={(e) => {
+                    handleHoldEnd(e);
+                  }}
+                  onClick={() => {
+                    if (!isHoldMode) {
+                      toggleRecording();
+                    }
+                  }}
+                  disabled={isTranscribing}
                   title={
-                    isListening
-                      ? 'ভয়েস ইনপুট বন্ধ করুন'
-                      : `ভয়েস কমান্ড / মুখে বলুন (${language === 'bn-BD' ? 'বাংলা' : 'English'})`
+                    isRecording
+                      ? 'রেকর্ডিং শেষ করতে ছেড়ে দিন বা ক্লিক করুন'
+                      : isTranscribing
+                      ? 'জেমিনি এআই দিয়ে ট্রান্সক্রাইব হচ্ছে...'
+                      : `চেপে ধরে কথা বলুন (Hold to Record) | ক্লিক করে রেকর্ডিং শুরু করুন (${voiceLang === 'bn-BD' ? 'বাংলা' : 'English'})`
                   }
                   animate={
-                    isListening
+                    isRecording
                       ? {
-                          scale: [1, 1.05, 1],
+                          scale: [1, 1.06, 1],
                           boxShadow: [
                             '0 0 0 0 rgba(244, 63, 94, 0.5), 0 2px 8px rgba(244, 63, 94, 0.3)',
-                            '0 0 0 6px rgba(244, 63, 94, 0), 0 2px 12px rgba(244, 63, 94, 0.4)',
+                            '0 0 0 7px rgba(244, 63, 94, 0), 0 2px 14px rgba(244, 63, 94, 0.4)',
                             '0 0 0 0 rgba(244, 63, 94, 0.5), 0 2px 8px rgba(244, 63, 94, 0.3)',
                           ],
                         }
                       : { scale: 1, boxShadow: 'none' }
                   }
                   transition={
-                    isListening
+                    isRecording
                       ? {
                           repeat: Infinity,
-                          duration: 1.4,
+                          duration: 1.2,
                           ease: 'easeInOut',
                         }
-                      : { duration: 0.2 }
+                      : { duration: 0.15 }
                   }
-                  className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                    isListening
-                      ? 'bg-rose-600 text-white shadow-md'
-                      : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-700'
+                  className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer select-none touch-none ${
+                    isRecording
+                      ? 'bg-rose-600 text-white shadow-md active:bg-rose-700'
+                      : isTranscribing
+                      ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                      : 'text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-700 active:scale-95 shadow-2xs'
                   }`}
                 >
-                  {isListening ? (
+                  {isTranscribing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                      <span>ট্রান্সক্রাইব...</span>
+                    </>
+                  ) : isRecording ? (
                     <>
                       {/* Active recording beacon */}
                       <span className="relative flex h-2 w-2">
@@ -362,8 +448,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                       </span>
 
-                      <MicOff className="w-3.5 h-3.5" />
-                      <span>রেকর্ডিং হচ্ছে...</span>
+                      <Mic className="w-3.5 h-3.5 animate-pulse" />
+                      <span>{isHoldMode ? 'ছেড়ে দিন' : 'রেকর্ডিং'} (00:{String(recordingDuration).padStart(2, '0')})</span>
 
                       {/* Mini Live Audio Equalizer Bars */}
                       <div className="flex items-center gap-0.5 h-3 ml-0.5">
@@ -389,8 +475,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     </>
                   ) : (
                     <>
-                      <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span className="hidden sm:inline">ভয়েস</span>
+                      <Mic className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+                      <span className="hidden sm:inline">ভয়েস (Hold)</span>
+                      <span className="sm:hidden">ভয়েস</span>
                     </>
                   )}
                 </motion.button>
@@ -400,16 +487,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <button
                 id="voice-language-quick-toggle"
                 type="button"
-                onClick={() => setLanguage(language === 'bn-BD' ? 'en-US' : 'bn-BD')}
-                title={`ভয়েস ইনপুট ভাষা: ${language === 'bn-BD' ? 'বাংলা (bn-BD)' : 'English (en-US)'} - পরিবর্তন করতে ক্লিক করুন`}
-                className={`flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-semibold transition-all border ${
-                  language === 'bn-BD'
+                onClick={() => setVoiceLang(voiceLang === 'bn-BD' ? 'en-US' : 'bn-BD')}
+                title={`ভয়েস ইনপুট ভাষা: ${voiceLang === 'bn-BD' ? 'বাংলা (bn-BD)' : 'English (en-US)'} - পরিবর্তন করতে ক্লিক করুন`}
+                className={`flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  voiceLang === 'bn-BD'
                     ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
                     : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800 hover:bg-blue-100'
                 }`}
               >
                 <Languages className="w-3.5 h-3.5" />
-                <span>{language === 'bn-BD' ? 'বাং' : 'EN'}</span>
+                <span>{voiceLang === 'bn-BD' ? 'বাং' : 'EN'}</span>
               </button>
 
               {input && (
@@ -442,7 +529,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <button
                   id="send-message-btn"
                   onClick={() => {
-                    if (isListening) stopListening();
+                    if (isRecording) stopRecording();
                     onSend();
                   }}
                   disabled={!input.trim()}
