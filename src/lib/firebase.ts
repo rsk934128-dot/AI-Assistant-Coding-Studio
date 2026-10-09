@@ -32,6 +32,7 @@ try {
     app,
     {
       experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
     },
     firebaseConfig.firestoreDatabaseId
   );

@@ -139,43 +139,43 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
       try {
         data = JSON.parse(rawText);
       } catch {
-        // Returned HTML (e.g. static CDN page or Service Worker interception)
-        if (rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE') || rawText.includes('<!doctype')) {
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-          }
-          setTestResult({
-            loading: false,
-            success: false,
-            error: 'সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে (ব্রাউজার সার্ভিস ওয়ার্কার বা স্ট্যাটিক ক্যাশ ইন্টারসেপ্ট করেছে)। নিচে "ক্যাশ ও SW রিসেট" চাপুন।',
-          });
-          return;
-        }
-      }
-
-      if (!res.ok || !data?.success) {
-        let errMessage = data?.error || data?.rawMessage;
-        if (!errMessage) {
-          if (res.status === 404) {
-            errMessage = 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)। ব্যাকএন্ড Express সার্ভার বা API চালু নেই।';
-          } else if (res.status === 405) {
-            errMessage = 'সার্ভার মেথড অনুমোদিত নয় (HTTP 405 Method Not Allowed)। এটি ঘটে যখন হোস্টিং শুধুমাত্র স্ট্যাটিক ফাইল পরিবেশন করছে এবং Express ব্যাকএন্ড প্রক্সি কনফিগার করা নেই।';
-          } else {
-            errMessage = `সার্ভারের সাথে সংযোগ ব্যর্থ (HTTP ${res.status})`;
-          }
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
         }
         setTestResult({
           loading: false,
           success: false,
-          latencyMs: data?.latencyMs,
-          error: errMessage,
+          error: rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE') || rawText.includes('<!doctype')
+            ? 'সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে (ব্রাউজার সার্ভিস ওয়ার্কার বা স্ট্যাটিক ক্যাশ ইন্টারসেপ্ট করেছে)। নিচে "ক্যাশ ও SW রিসেট" চাপুন।'
+            : `সার্ভার থেকে অবৈধ রেসপন্স পাওয়া গেছে: ${rawText.slice(0, 120) || '(খালি)'}`,
         });
-      } else {
+        return;
+      }
+
+      const isSuccess = Boolean(data?.success || data?.status === 'ok' || data?.reply);
+
+      if (res.ok && isSuccess) {
         setTestResult({
           loading: false,
           success: true,
           latencyMs: data.latencyMs,
           reply: data.reply || 'OK',
+        });
+      } else {
+        const errMessage =
+          data?.error ||
+          data?.rawMessage ||
+          (res.status === 405
+            ? 'সার্ভার মেথড অনুমোদিত নয় (HTTP 405 Method Not Allowed)। এটি ঘটে যখন হোস্টিং শুধুমাত্র স্ট্যাটিক ফাইল পরিবেশন করছে এবং Express ব্যাকএন্ড সক্রিয় নয়।'
+            : res.status === 404
+            ? 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)। ব্যাকএন্ড Express সার্ভার চালু নেই।'
+            : `সার্ভারের সাথে সংযোগ ব্যর্থ (HTTP ${res.status}): ${typeof data === 'object' ? JSON.stringify(data) : String(data)}`);
+
+        setTestResult({
+          loading: false,
+          success: false,
+          latencyMs: data?.latencyMs,
+          error: errMessage,
         });
       }
     } catch (err: any) {

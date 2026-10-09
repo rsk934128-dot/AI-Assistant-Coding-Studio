@@ -140,11 +140,11 @@ export default defineConfig(() => {
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB to accommodate bundles
-          navigateFallbackDenylist: [/^\/api\/.*/, /^\/api$/],
+          navigateFallbackDenylist: [/^\/api(\/.*)?$/i],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
-              urlPattern: /^\/api\/.*/i,
+              urlPattern: /^\/api(\/.*)?$/i,
               handler: 'NetworkOnly',
             },
             {

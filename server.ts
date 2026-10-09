@@ -6,9 +6,7 @@ import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
-const PORT = process.env.NODE_ENV === 'production' && process.env.PORT
-  ? parseInt(process.env.PORT, 10)
-  : 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Enable CORS for hosted environments and cross-origin clients
 app.use((req, res, next) => {
@@ -23,8 +21,11 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
-// Normalize incoming path for serverless/proxy hosts that may strip the /api prefix
+// Normalize incoming path for serverless/proxy hosts that may strip the /api prefix or rewrite to /api/index
 app.use((req, res, next) => {
+  if (req.url.startsWith('/api/index')) {
+    req.url = req.url.replace('/api/index', '/api');
+  }
   if (
     !req.url.startsWith('/api') &&
     (req.url.startsWith('/health') ||
@@ -34,11 +35,25 @@ app.use((req, res, next) => {
       req.url.startsWith('/web') ||
       req.url.startsWith('/agent') ||
       req.url.startsWith('/music') ||
+      req.url.startsWith('/session') ||
+      req.url.startsWith('/youtube') ||
+      req.url.startsWith('/mini-browser') ||
+      req.url.startsWith('/proxy') ||
       req.url.startsWith('/drive'))
   ) {
     req.url = '/api' + req.url;
   }
   next();
+});
+
+// Root API status endpoint
+app.all(['/api', '/api/'], (req, res) => {
+  res.json({
+    success: true,
+    status: 'ok',
+    message: 'AI Studio Assistant API is online',
+    time: new Date().toISOString(),
+  });
 });
 
 
@@ -59,9 +74,10 @@ function getAIClient() {
 }
 
 // Health check endpoint with hosting diagnostics
-app.all('/api/health', (req, res) => {
+app.all(['/api/health', '/api/health/'], (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   res.json({
+    success: true,
     status: 'ok',
     hasApiKey: Boolean(apiKey && apiKey.length > 0),
     port: PORT,
