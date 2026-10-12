@@ -104,7 +104,8 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
       }
 
       if (!res.ok) {
-        const errorDetail = (data as any)?.error || (data as any)?.message;
+        const rawErr = (data as any)?.error || (data as any)?.message;
+        const errorDetail = typeof rawErr === 'object' ? JSON.stringify(rawErr) : (rawErr ? String(rawErr) : '');
         if (res.status === 404) {
           throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। ব্যাকএন্ড Express সার্ভার বা API চালু নেই।');
         }
