@@ -14,11 +14,25 @@ export const FALLBACK_MODELS = [
   'gemini-3.1-flash-lite',
 ];
 
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception caught in server:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection caught in server at:', promise, 'reason:', reason);
+});
+
 // Enable CORS for hosted environments and cross-origin clients
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -83,6 +97,9 @@ function getAIClient() {
 app.all(['/api/health', '/api/health/'], (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.json({
       success: true,
       status: 'ok',
@@ -1325,11 +1342,15 @@ Respond ONLY with valid JSON in this exact structure:
   }
 });
 
-// JSON 404 response for any unhandled /api/* endpoints
-app.all('/api/*', (req, res) => {
-  res.status(404).json({
-    error: `API route not found: ${req.method} ${req.path}`,
-    status: 404,
+// Global Express error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled route error in server:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(500).json({
+    success: false,
+    error: err?.message || 'Internal Server Error',
   });
 });
 

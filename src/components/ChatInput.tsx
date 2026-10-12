@@ -28,6 +28,7 @@ import { useMediaRecorderVoice, VoiceLanguage } from '../hooks/useMediaRecorderV
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { extractYouTubeVideoId } from '../utils/youtube';
 import { AudioFrequencyWave } from './AudioFrequencyWave';
+import { WordCharCounter } from './WordCharCounter';
 
 interface ChatInputProps {
   input: string;
@@ -511,9 +512,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span className="hidden sm:inline text-[11px] text-stone-400">
-                Enter পাঠাতে | 'পাঠাও' ভয়েস কমান্ড
+            <div className="flex items-center gap-1.5 sm:gap-2.5">
+              {/* Word & Character Counter Component */}
+              <WordCharCounter
+                text={input}
+                onCleanWhitespace={(cleaned) => setInput(cleaned)}
+              />
+
+              <span className="hidden lg:inline text-[11px] text-stone-400">
+                Enter পাঠাতে | 'পাঠাও' ভয়েস
               </span>
 
               {isGenerating ? (

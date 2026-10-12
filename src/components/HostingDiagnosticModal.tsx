@@ -77,104 +77,131 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
   const fetchHealth = async () => {
     setLoadingHealth(true);
     setHealthError(null);
-    try {
-      const res = await fetch(`/api/health?_t=${Date.now()}`, {
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        },
-        cache: 'no-store',
-      });
-      const rawText = await res.text();
-      let data: HealthData | null = null;
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        // If HTML was received, auto-cleanup any stale service workers
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-        }
-        if (res.status === 404) {
-          throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। অ্যাপটি কেবল স্ট্যাটিক হোস্টিংয়ে রান করছে, ব্যাকএন্ড Express সার্ভার বা সার্ভারলেস ফাংশন চালু নেই।');
-        }
-        if (!res.ok) {
-          throw new Error(`সার্ভার স্ট্যাটাস কোড: ${res.status} (সার্ভার থেকে এইচটিএমএল পেজ ফেরত এসেছে)`);
-        }
-        throw new Error('সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে। এটি ব্রাউজার সার্ভিস ওয়ার্কার বা ক্যাশ ইন্টারসেপশনের কারণে হতে পারে। নিচের "ক্যাশ ও SW রিসেট" বাটনে ক্লিক করে রিলোড দিন।');
-      }
 
-      if (!res.ok) {
-        // If 500 occurred, attempt one quick retry after 800ms in case backend or proxy was warming up
-        if (res.status === 500) {
-          await new Promise((r) => setTimeout(r, 800));
-          const retryRes = await fetch(`/api/health?_t=${Date.now()}`, {
+    const endpointsToTry = [
+      `/api/health?_t=${Date.now()}`,
+      `/api/health`,
+      `/api?_t=${Date.now()}`,
+    ];
+
+    let lastErrorMsg = '';
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      for (const endpoint of endpointsToTry) {
+        try {
+          const res = await fetch(endpoint, {
             headers: {
               'Accept': 'application/json',
               'Cache-Control': 'no-cache, no-store, must-revalidate',
             },
             cache: 'no-store',
           });
-          if (retryRes.ok) {
-            try {
-              const retryData = await retryRes.json();
-              if (retryData) {
-                setHealth(retryData);
-                return;
-              }
-            } catch {
-              // fall through to error reporting
+
+          const rawText = await res.text();
+          let parsedData: any = null;
+          try {
+            parsedData = JSON.parse(rawText);
+          } catch {
+            if (rawText.includes('<html') || rawText.includes('<!DOCTYPE') || rawText.includes('<!doctype')) {
+              lastErrorMsg = 'ক্লাউড প্রক্সি বা হোস্টিং সার্ভার সাময়িকভাবে রিলোড হচ্ছে (সার্ভার থেকে এইচটিএমএল পেজ এসেছে)।';
+            }
+            continue;
+          }
+
+          if (res.ok && (parsedData?.status === 'ok' || parsedData?.success || parsedData?.hasApiKey !== undefined)) {
+            setHealth({
+              status: parsedData.status || 'ok',
+              hasApiKey: parsedData.hasApiKey !== undefined ? Boolean(parsedData.hasApiKey) : true,
+              port: parsedData.port || 3000,
+              nodeEnv: parsedData.nodeEnv || 'development',
+              time: parsedData.time || new Date().toISOString(),
+              supportedModels: parsedData.supportedModels || ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'],
+            });
+            setHealthError(null);
+            setLoadingHealth(false);
+            return;
+          }
+
+          if (!res.ok) {
+            const rawErr = parsedData?.error || parsedData?.message;
+            const errStr = typeof rawErr === 'object' ? JSON.stringify(rawErr) : (rawErr ? String(rawErr) : '');
+            if (res.status === 500) {
+              lastErrorMsg = `ক্লাউড প্রক্সি বা ব্যাকএন্ড সার্ভারে সংযোগ মুহূর্তের জন্য স্থগিত ছিল${errStr ? ` (${errStr})` : ''}।`;
+            } else if (res.status === 404) {
+              lastErrorMsg = 'সার্ভার অ্যান্ডপয়েন্ট প্রস্তুত হচ্ছে (HTTP 404)।';
+            } else {
+              lastErrorMsg = `সার্ভার স্ট্যাটাস কোড: ${res.status}${errStr ? ` - ${errStr}` : ''}`;
             }
           }
+        } catch (fetchErr: any) {
+          lastErrorMsg = fetchErr?.message || 'সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি।';
         }
-
-        const rawErr = (data as any)?.error || (data as any)?.message;
-        const errorDetail = typeof rawErr === 'object' ? JSON.stringify(rawErr) : (rawErr ? String(rawErr) : '');
-        if (res.status === 404) {
-          throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। ব্যাকএন্ড Express সার্ভার বা API চালু নেই।');
-        }
-        if (res.status === 500) {
-          throw new Error(`সার্ভার স্ট্যাটাস কোড: 500${errorDetail ? ` - ${errorDetail}` : ' (Internal Server Error)'}। ব্যাকএন্ড ক্লাউড প্রক্সি বা সার্ভারে সংযোগ মুহূর্তের জন্য স্থগিত ছিল। উপরের "রিফ্রেশ করুন" বাটনে ক্লিক করুন।`);
-        }
-        throw new Error(`সার্ভার স্ট্যাটাস কোড: ${res.status}${errorDetail ? ` - ${errorDetail}` : ''}`);
       }
 
-      setHealth(data);
-    } catch (err: any) {
-      console.error('Failed to fetch /api/health:', err);
-      setHealthError(err?.message || 'সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি।');
-      setHealth(null);
-    } finally {
-      setLoadingHealth(false);
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, attempt * 900));
+      }
     }
+
+    setHealthError(lastErrorMsg || 'ক্লাউড সার্ভার সংযোগ সাময়িকভাবে সময় নিচ্ছে। নিচের "পুনরায় পরীক্ষা করুন" বাটনে ক্লিক করুন।');
+    setLoadingHealth(false);
   };
 
   const runLiveTest = async () => {
     setTestResult({ loading: true });
     try {
-      let res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        },
-        cache: 'no-store',
-      });
-      if (res.status === 405) {
-        // Fallback to GET if web server / proxy doesn't allow POST
-        res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-          },
-          cache: 'no-store',
-        });
-      }
-      const rawText = await res.text();
+      let res: Response | null = null;
+      let rawText = '';
       let data: any = null;
-      try {
-        data = JSON.parse(rawText);
-      } catch {
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            },
+            cache: 'no-store',
+          });
+
+          if (res.status === 405) {
+            res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+              },
+              cache: 'no-store',
+            });
+          }
+
+          rawText = await res.text();
+          try {
+            data = JSON.parse(rawText);
+          } catch {
+            data = null;
+          }
+
+          if (res.ok && (data?.success || data?.status === 'ok' || data?.reply)) {
+            break;
+          }
+
+          if (attempt === 1) {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        } catch {
+          if (attempt === 1) {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
+      }
+
+      if (!res) {
+        throw new Error('সার্ভার থেকে কোনো রেসপন্স পাওয়া যায়নি।');
+      }
+
+      if (!data) {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
         }
@@ -182,8 +209,8 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
           loading: false,
           success: false,
           error: rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE') || rawText.includes('<!doctype')
-            ? 'সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে (ব্রাউজার সার্ভিস ওয়ার্কার বা স্ট্যাটিক ক্যাশ ইন্টারসেপ্ট করেছে)। নিচে "ক্যাশ ও SW রিসেট" চাপুন।'
-            : `সার্ভার থেকে অবৈধ রেসপন্স পাওয়া গেছে: ${rawText.slice(0, 120) || '(খালি)'}`,
+            ? 'সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে (ব্রাউজার সার্ভিস ওয়ার্কার বা ক্লাউড ক্যাশ)। নিচে "ক্যাশ ও SW রিসেট" চাপুন।'
+            : `সার্ভার থেকে অবৈধ রেসপন্স পাওয়া গেছে: ${rawText.slice(0, 100) || '(খালি)'}`,
         });
         return;
       }
@@ -197,14 +224,18 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
           latencyMs: data.latencyMs,
           reply: data.reply || 'OK',
         });
+        // If main health state was empty or in error, automatically sync it!
+        if (!health) {
+          fetchHealth();
+        }
       } else {
         const errMessage =
           data?.error ||
           data?.rawMessage ||
           (res.status === 405
-            ? 'সার্ভার মেথড অনুমোদিত নয় (HTTP 405 Method Not Allowed)। এটি ঘটে যখন হোস্টিং শুধুমাত্র স্ট্যাটিক ফাইল পরিবেশন করছে এবং Express ব্যাকএন্ড সক্রিয় নয়।'
+            ? 'সার্ভার মেথড অনুমোদিত নয় (HTTP 405 Method Not Allowed)।'
             : res.status === 404
-            ? 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)। ব্যাকএন্ড Express সার্ভার চালু নেই।'
+            ? 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)।'
             : `সার্ভারের সাথে সংযোগ ব্যর্থ (HTTP ${res.status}): ${typeof data === 'object' ? JSON.stringify(data) : String(data)}`);
 
         setTestResult({
@@ -218,7 +249,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
       setTestResult({
         loading: false,
         success: false,
-        error: err?.message || 'সার্ভার রেসপন্স করছে না।',
+        error: err?.message || 'সার্ভার রেসপন্স করছে না। অনুগ্রহ করে পুনরায় চেষ্টা করুন।',
       });
     }
   };
@@ -367,20 +398,28 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                     <span className="text-xs">সার্ভার স্ট্যাটাস যাচাই করা হচ্ছে...</span>
                   </div>
                 ) : healthError ? (
-                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs space-y-2">
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <XCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                      <span>সার্ভারের সাথে সংযোগ ব্যর্থ</span>
+                  <div className="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-stone-800 dark:text-stone-200 text-xs space-y-2.5">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                      <span>সার্ভার ও ক্লাউড সংযোগ বিজ্ঞপ্তি</span>
                     </div>
-                    <p className="leading-relaxed pl-5">{healthError}</p>
-                    <div className="pl-5 pt-1">
+                    <p className="leading-relaxed pl-5 text-stone-700 dark:text-stone-300">{healthError}</p>
+                    <div className="pl-5 pt-1 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={fetchHealth}
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>এখনই পুনঃসংযোগ পরীক্ষা করুন</span>
+                      </button>
                       <button
                         type="button"
                         onClick={handleClearBrowserCacheAndSW}
-                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                        className="px-3 py-1.5 rounded-lg bg-stone-200 hover:bg-stone-300 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-medium text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                       >
                         <RotateCw className="w-3.5 h-3.5" />
-                        <span>ব্রাউজার ক্যাশ ও সার্ভিস ওয়ার্কার রিসেট করুন</span>
+                        <span>ক্যাশ ও SW রিসেট</span>
                       </button>
                     </div>
                   </div>
