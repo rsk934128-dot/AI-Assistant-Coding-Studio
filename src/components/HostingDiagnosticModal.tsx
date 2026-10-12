@@ -104,13 +104,36 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
       }
 
       if (!res.ok) {
+        // If 500 occurred, attempt one quick retry after 800ms in case backend or proxy was warming up
+        if (res.status === 500) {
+          await new Promise((r) => setTimeout(r, 800));
+          const retryRes = await fetch(`/api/health?_t=${Date.now()}`, {
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            },
+            cache: 'no-store',
+          });
+          if (retryRes.ok) {
+            try {
+              const retryData = await retryRes.json();
+              if (retryData) {
+                setHealth(retryData);
+                return;
+              }
+            } catch {
+              // fall through to error reporting
+            }
+          }
+        }
+
         const rawErr = (data as any)?.error || (data as any)?.message;
         const errorDetail = typeof rawErr === 'object' ? JSON.stringify(rawErr) : (rawErr ? String(rawErr) : '');
         if (res.status === 404) {
           throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। ব্যাকএন্ড Express সার্ভার বা API চালু নেই।');
         }
         if (res.status === 500) {
-          throw new Error(`সার্ভার স্ট্যাটাস কোড: 500${errorDetail ? ` - ${errorDetail}` : ' (Internal Server Error)'}। ব্যাকএন্ড সার্ভারে সাময়িক সমস্যা হয়েছে, রিলোড বা রিফ্রেশ দিয়ে পুনরায় পরীক্ষা করুন।`);
+          throw new Error(`সার্ভার স্ট্যাটাস কোড: 500${errorDetail ? ` - ${errorDetail}` : ' (Internal Server Error)'}। ব্যাকএন্ড ক্লাউড প্রক্সি বা সার্ভারে সংযোগ মুহূর্তের জন্য স্থগিত ছিল। উপরের "রিফ্রেশ করুন" বাটনে ক্লিক করুন।`);
         }
         throw new Error(`সার্ভার স্ট্যাটাস কোড: ${res.status}${errorDetail ? ` - ${errorDetail}` : ''}`);
       }
