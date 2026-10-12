@@ -380,8 +380,9 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden md:inline">নতুন চ্যাট</span>
         </button>
 
-        {/* Quick Mini Google Browser Research Launcher */}
+        {/* In-App Mini Google Web Browser Launcher */}
         <button
+          id="header-mini-google-browser-btn"
           type="button"
           onClick={() => {
             const query = activeSessionTitle && activeSessionTitle !== 'নতুন কথোপকথন'
@@ -391,11 +392,12 @@ export const Header: React.FC<HeaderProps> = ({
               sessionTitle: activeSessionTitle,
             });
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-700 dark:text-stone-300 hover:text-blue-600 dark:hover:text-blue-400 bg-stone-100 hover:bg-stone-200/80 dark:bg-stone-800 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 transition-colors shadow-xs cursor-pointer"
-          title="চলমান চ্যাট প্রসঙ্গ নিয়ে মিনি গুগল ব্রাউজারে রিসার্চ করুন"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 border border-blue-300 dark:border-blue-800 transition-colors shadow-xs cursor-pointer"
+          title="মিনি গুগল ব্রাউজার খুলুন (লাইভ ওয়েব সার্চ, ইউটিউব, গুগল রিসোর্স)"
         >
-          <Globe className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <span className="hidden lg:inline">চ্যাট রিসার্চ</span>
+          <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <span className="hidden sm:inline">মিনি গুগল ব্রাউজার</span>
+          <span className="sm:hidden">গুগল</span>
         </button>
 
         {/* PWA Install Button */}

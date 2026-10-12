@@ -26,6 +26,7 @@ import {
 import { AssistantMode } from '../types';
 import { useMediaRecorderVoice, VoiceLanguage } from '../hooks/useMediaRecorderVoice';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { extractYouTubeVideoId } from '../utils/youtube';
 import { AudioFrequencyWave } from './AudioFrequencyWave';
 import { WordCharCounter } from './WordCharCounter';
@@ -58,6 +59,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const musicPlayer = useMusicPlayer();
+  const miniBrowser = useMiniBrowser();
   const detectedYouTubeId = extractYouTubeVideoId(input);
 
   const [voiceLang, setVoiceLang] = useState<VoiceLanguage>('bn-BD');
@@ -363,11 +365,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   type="button"
                   onClick={onOpenGoogleDrive}
                   title="Google Drive থেকে ফাইল বা কোড ইম্পোর্ট করুন"
-                  className="p-1.5 rounded-lg text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+                  className="p-1.5 rounded-lg text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
                 >
                   <HardDrive className="w-4 h-4" />
                 </button>
               )}
+
+              {/* In-App Mini Google Browser Launcher Button */}
+              <button
+                id="chat-mini-google-browser-btn"
+                type="button"
+                onClick={() => miniBrowser.openBrowser(input.trim() || undefined)}
+                title="মিনি গুগল ব্রাউজার ও লাইভ ওয়েব সার্চ খুলুন (Google Search, YouTube & Resources)"
+                className="p-1.5 rounded-lg text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
+              >
+                <Globe className="w-4 h-4" />
+              </button>
 
               {/* Hold to Record Microphone Button using MediaRecorder API */}
               <div className="relative inline-flex items-center select-none">

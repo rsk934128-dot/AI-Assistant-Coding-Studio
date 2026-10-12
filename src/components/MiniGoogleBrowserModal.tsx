@@ -34,6 +34,13 @@ import {
   ChevronDown,
   ChevronUp,
   Tag,
+  HardDrive,
+  FileSpreadsheet,
+  Presentation,
+  MapPin,
+  Mail,
+  FileCode,
+  Languages,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
@@ -44,6 +51,7 @@ import { ChatSession } from '../types';
 export interface MiniGoogleBrowserModalProps {
   activeSession?: ChatSession;
   onInsertIntoChat?: (text: string) => void;
+  onOpenGoogleDrive?: () => void;
 }
 
 export interface YouTubeSearchResult {
@@ -88,7 +96,7 @@ interface LyricsData {
 }
 
 interface HistoryEntry {
-  tab: 'search' | 'youtube' | 'web' | 'lyrics';
+  tab: 'search' | 'youtube' | 'web' | 'lyrics' | 'resources';
   urlOrQuery: string;
   videoId?: string;
   videoTitle?: string;
@@ -99,6 +107,7 @@ interface HistoryEntry {
 export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
   activeSession,
   onInsertIntoChat,
+  onOpenGoogleDrive,
 }) => {
   const {
     isOpen,
@@ -245,6 +254,109 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
       setTimeout(() => setInsertedFeedback(null), 2500);
     }
   };
+
+  const googleResourcesList = React.useMemo(() => [
+    {
+      title: 'Google Drive (গুগল ড্রাইভ)',
+      description: 'ক্লাউড ফাইল ও কোড স্টোরেজ, ইন-অ্যাপ ব্যাকআপ ও সরাসরি ম্যানেজমেন্ট।',
+      url: 'https://drive.google.com',
+      icon: HardDrive,
+      bg: 'bg-amber-500/10',
+      textColor: 'text-amber-400',
+      action: 'drive',
+      primaryActionLabel: onOpenGoogleDrive ? 'ইন-অ্যাপ ড্রাইভ' : 'ড্রাইভ খুলুন',
+    },
+    {
+      title: 'Google Docs (গুগল ডক্স)',
+      description: 'অনলাইনে স্মার্ট ডকুমেন্ট তৈরি, নোট লেখালেখি ও ফরম্যাটিং।',
+      url: 'https://docs.google.com/document/create',
+      icon: FileText,
+      bg: 'bg-blue-500/10',
+      textColor: 'text-blue-400',
+    },
+    {
+      title: 'Google Sheets (গুগল শিটস)',
+      description: 'অনলাইন স্প্রেডশিট, এক্সেল ক্যালকুলেশন ও ডাটা টেবিল।',
+      url: 'https://sheets.google.com/create',
+      icon: FileSpreadsheet,
+      bg: 'bg-emerald-500/10',
+      textColor: 'text-emerald-400',
+    },
+    {
+      title: 'Google Slides (গুগল স্লাইডস)',
+      description: 'প্রেজেন্টেশন তৈরি ও প্রফেশনাল স্লাইড ডেক ডিজাইন।',
+      url: 'https://slides.google.com/create',
+      icon: Presentation,
+      bg: 'bg-orange-500/10',
+      textColor: 'text-orange-400',
+    },
+    {
+      title: 'Google Maps (গুগল ম্যাপস)',
+      description: 'স্যাটেলাইট ভিউ, গ্লোবাল লোকেশন, নেভিগেশন ও দিকনির্দেশনা।',
+      url: 'https://www.google.com/maps',
+      icon: MapPin,
+      bg: 'bg-red-500/10',
+      textColor: 'text-red-400',
+    },
+    {
+      title: 'Google Translate (গুগল অনুবাদক)',
+      description: 'বাংলা, ইংরেজি ও শতাধিক আন্তর্জাতিক ভাষায় নির্ভুল টেক্সট অনুবাদ।',
+      url: 'https://translate.google.com/?sl=auto&tl=bn',
+      icon: Languages,
+      bg: 'bg-blue-500/10',
+      textColor: 'text-blue-400',
+    },
+    {
+      title: 'YouTube ও মিউজিক',
+      description: 'ভিডিও ও ব্যাকগ্রাউন্ড গান স্ট্রিমিং ও লিরিক্স প্লেয়ার।',
+      url: 'https://www.youtube.com',
+      icon: Youtube,
+      bg: 'bg-red-500/10',
+      textColor: 'text-red-400',
+      action: 'youtube',
+      primaryActionLabel: 'ইন-অ্যাপ প্লেয়ার',
+    },
+    {
+      title: 'Google Keep (গুগল কিপ)',
+      description: 'দ্রুত নোট, চেকলিস্ট ও দৈনন্দিন রিমাইন্ডার সংরক্ষণ।',
+      url: 'https://keep.google.com',
+      icon: Sparkles,
+      bg: 'bg-yellow-500/10',
+      textColor: 'text-yellow-400',
+    },
+    {
+      title: 'Google News (গুগল নিউজ)',
+      description: 'তাজা জাতীয় ও আন্তর্জাতিক ব্রেকিং সংবাদ ও শিরোনাম।',
+      url: 'https://news.google.com',
+      icon: BookOpen,
+      bg: 'bg-sky-500/10',
+      textColor: 'text-sky-400',
+    },
+    {
+      title: 'Gmail (গুগল মেইল)',
+      description: 'নিরাপদ গুগল ইমেইল ইনবক্স ও বার্তা আদান-প্রদান।',
+      url: 'https://mail.google.com',
+      icon: Mail,
+      bg: 'bg-rose-500/10',
+      textColor: 'text-rose-400',
+    },
+    {
+      title: 'Google Scholar (গুগল স্কলার)',
+      description: 'গবেষণাপত্র, থিসিস ও আন্তর্জাতিক জার্নাল অনুসন্ধান।',
+      url: 'https://scholar.google.com',
+      icon: BookOpen,
+      bg: 'bg-indigo-500/10',
+      textColor: 'text-indigo-400',
+    },
+    {
+      title: 'Google Colab (গুগল কোলাব)',
+      description: 'পাইথন জুপিটার নোটবুক ও এআই কোডিং এনভায়রনমেন্ট।',
+      url: 'https://colab.research.google.com',
+      icon: FileCode,
+      bg: 'bg-amber-500/10',
+      textColor: 'text-amber-400',
+    },
+  ], [onOpenGoogleDrive]);
 
   const handleSelectChatTopic = (topic: string) => {
     setInputUrlOrQuery(topic);
@@ -694,8 +806,67 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
               />
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center gap-1 bg-stone-900/90 p-0.5 rounded-lg border border-stone-800 text-xs">
+            {/* Titlebar Tabs */}
+            <div className="flex items-center gap-1 bg-stone-900/90 p-0.5 rounded-lg border border-stone-800 text-xs overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('search');
+                  pushHistory({
+                    tab: 'search',
+                    urlOrQuery: inputUrlOrQuery || 'Google Search',
+                    searchData,
+                  });
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'search'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5 text-white" />
+                <span>গুগল সার্চ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('web');
+                  pushHistory({
+                    tab: 'web',
+                    urlOrQuery: activeUrl || 'https://www.google.com',
+                  });
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'web'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-white" />
+                <span>লাইভ ওয়েব</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('resources');
+                  pushHistory({
+                    tab: 'resources',
+                    urlOrQuery: 'গুগল রিসোর্স হাব',
+                  });
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all shrink-0 cursor-pointer ${
+                  activeTab === 'resources'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
+                }`}
+                title="Google Drive, Docs, Sheets, Maps, Translate ও গুগল সার্ভিসেস"
+              >
+                <HardDrive className="w-3.5 h-3.5 text-white" />
+                <span>গুগল রিসোর্স হাব</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -707,7 +878,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
                     videoTitle: currentSongTitle,
                   });
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all shrink-0 cursor-pointer ${
                   activeTab === 'youtube'
                     ? 'bg-red-600 text-white shadow-xs'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
@@ -715,26 +886,6 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
               >
                 <Youtube className="w-3.5 h-3.5 text-white" />
                 <span>ইউটিউব ও মিউজিক</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('search');
-                  pushHistory({
-                    tab: 'search',
-                    urlOrQuery: inputUrlOrQuery || 'Google Search',
-                    searchData,
-                  });
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all ${
-                  activeTab === 'search'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
-                }`}
-              >
-                <Search className="w-3.5 h-3.5 text-white" />
-                <span>গুগল সার্চ</span>
               </button>
 
               <button
@@ -753,7 +904,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
                     });
                   }
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all shrink-0 cursor-pointer ${
                   activeTab === 'lyrics'
                     ? 'bg-purple-600 text-white shadow-xs'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
@@ -1485,6 +1636,140 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
                   <p className="text-sm text-stone-400">গানের লিরিক্স দেখতে উপরে গানের নাম দিয়ে সার্চ করুন।</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: GOOGLE RESOURCES & WORKSPACE HUB */}
+          {activeTab === 'resources' && (
+            <div className="max-w-4xl mx-auto space-y-4 flex-1">
+              {/* Resources Header Banner */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-amber-950/40 via-stone-900 to-stone-900 border border-amber-500/30 shadow-md space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                      <HardDrive className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                        <span>গুগল রিসোর্স হাব ও ওয়ার্কস্পেস</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          হোস্টিং সক্রিয় ও প্রস্তুত
+                        </span>
+                      </h3>
+                      <p className="text-xs text-stone-400 mt-0.5">
+                        লাইভ হোস্টিংয়ে গুগল ড্রাইভ, ডক্স, শিটস, ম্যাপস, ট্রান্সলেট ও সার্চ নির্বিঘ্নে ব্যবহারের অল-ইন-ওয়ান কেন্দ্র
+                      </p>
+                    </div>
+                  </div>
+
+                  {onOpenGoogleDrive && (
+                    <button
+                      type="button"
+                      onClick={onOpenGoogleDrive}
+                      className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer shrink-0"
+                    >
+                      <HardDrive className="w-3.5 h-3.5" />
+                      <span>ইন-অ্যাপ ড্রাইভ খুলুন</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Search across Google Services */}
+              <div className="p-3.5 rounded-2xl bg-stone-900 border border-stone-800 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-stone-300">
+                  <Search className="w-3.5 h-3.5 text-blue-400" />
+                  <span>গুগল রিসোর্সে তাৎক্ষণিক সার্চ করুন:</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={inputUrlOrQuery}
+                    onChange={(e) => setInputUrlOrQuery(e.target.value)}
+                    placeholder="কী খুঁজতে চান? লিখুন (যেমন: বাংলাদেশ ইতিহাস, বাংলা লিরিক্স, গুগল শিট)..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSearch(inputUrlOrQuery || 'Google Search', true);
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 focus:border-amber-500 focus:outline-hidden text-xs text-stone-100 placeholder-stone-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSearch(inputUrlOrQuery || 'Google Search', true)}
+                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    গুগলে খুঁজুন
+                  </button>
+                </div>
+              </div>
+
+              {/* Google Services Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {googleResourcesList.map((res, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl bg-stone-900 hover:bg-stone-850 border border-stone-800 transition-all flex flex-col justify-between group space-y-2.5"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`p-2 rounded-xl ${res.bg} ${res.textColor} shrink-0`}>
+                        <res.icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold text-white truncate group-hover:text-amber-400 transition-colors">
+                          {res.title}
+                        </h4>
+                        <p className="text-[11px] text-stone-400 line-clamp-2 mt-0.5 leading-relaxed">
+                          {res.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 pt-2 border-t border-stone-800/80">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (res.action === 'drive' && onOpenGoogleDrive) {
+                            onOpenGoogleDrive();
+                          } else if (res.action === 'youtube') {
+                            setActiveTab('youtube');
+                          } else {
+                            setActiveUrl(res.url);
+                            setActiveTab('web');
+                            pushHistory({
+                              tab: 'web',
+                              urlOrQuery: res.url,
+                            });
+                          }
+                        }}
+                        className="flex-1 py-1 px-2 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-200 hover:text-white text-[11px] font-medium transition-colors text-center cursor-pointer"
+                      >
+                        {res.primaryActionLabel || 'ব্রাউজারে খুলুন'}
+                      </button>
+
+                      <a
+                        href={res.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-400 hover:text-stone-200 text-[11px] transition-colors"
+                        title="নতুন ট্যাবে খুলুন"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => handleInsertReference(res.title, res.url, res.description)}
+                        className="p-1 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-400 hover:text-blue-400 text-[11px] transition-colors cursor-pointer"
+                        title="চ্যাটে লিঙ্ক পাঠান"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

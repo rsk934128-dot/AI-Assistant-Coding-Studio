@@ -7,18 +7,20 @@ export interface ChatResearchContext {
   urls?: Array<{ url: string; title?: string }>;
 }
 
+export type MiniBrowserTab = 'search' | 'youtube' | 'web' | 'lyrics' | 'resources';
+
 export interface MiniBrowserContextType {
   isOpen: boolean;
   activeUrl: string;
   searchQuery: string;
   activeVideoId?: string;
   activeVideoTitle?: string;
-  activeTab: 'search' | 'youtube' | 'web' | 'lyrics';
+  activeTab: MiniBrowserTab;
   chatContext: ChatResearchContext | null;
-  setActiveTab: (tab: 'search' | 'youtube' | 'web' | 'lyrics') => void;
+  setActiveTab: (tab: MiniBrowserTab) => void;
   openBrowser: (
     urlOrQuery?: string,
-    tab?: 'search' | 'youtube' | 'web' | 'lyrics',
+    tab?: MiniBrowserTab,
     context?: ChatResearchContext
   ) => void;
   openYouTubeInBrowser: (videoId: string, title?: string, originalUrl?: string) => void;
@@ -36,12 +38,12 @@ export const MiniBrowserProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [searchQuery, setSearchQuery] = useState('');
   const [activeVideoId, setActiveVideoId] = useState<string | undefined>(undefined);
   const [activeVideoTitle, setActiveVideoTitle] = useState<string | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<'search' | 'youtube' | 'web' | 'lyrics'>('search');
+  const [activeTab, setActiveTab] = useState<MiniBrowserTab>('search');
   const [chatContext, setChatContext] = useState<ChatResearchContext | null>(null);
 
   const openBrowser = useCallback((
     urlOrQuery?: string,
-    tab: 'search' | 'youtube' | 'web' | 'lyrics' = 'search',
+    tab: MiniBrowserTab = 'search',
     context?: ChatResearchContext
   ) => {
     if (context) {

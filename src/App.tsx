@@ -1271,6 +1271,7 @@ export default function App() {
         onInsertIntoChat={(text) => {
           setInput((prev) => (prev ? `${prev}\n\n${text}` : text));
         }}
+        onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
       />
 
       {/* Text-to-Speech Engine Speed & Voice Settings Modal */}

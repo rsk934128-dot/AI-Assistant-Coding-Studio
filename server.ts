@@ -878,14 +878,141 @@ app.get('/api/proxy/reader', async (req, res) => {
   }
 });
 
-// In-App Mini Google Web Browser: Live Google Search API with Grounding
-app.post('/api/mini-browser/search', async (req, res) => {
-  try {
-    const { query } = req.body;
-    if (!query || typeof query !== 'string' || !query.trim()) {
-      return res.status(400).json({ error: 'Search query is required.' });
-    }
+// Helper to fetch live web search results from verified sources (Wikipedia, DDG, YouTube)
+async function getFastLiveSearchResults(query: string) {
+  const safeQuery = (query || '').trim() || 'Google Search';
 
+  // Parallel fetch: Wikipedia (Bengali + English) + DuckDuckGo + YouTube
+  const [wikiBnRes, wikiEnRes, ddgRes, directYt] = await Promise.all([
+    fetch(`https://bn.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(safeQuery)}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AIStudio/1.0' },
+      signal: AbortSignal.timeout(3000),
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(safeQuery)}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AIStudio/1.0' },
+      signal: AbortSignal.timeout(3000),
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+
+    fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(safeQuery)}&format=json&no_html=1&skip_disambig=1`, {
+      signal: AbortSignal.timeout(3000),
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+
+    searchYouTubeDirect(safeQuery).catch(() => []),
+  ]);
+
+  const wiki = wikiBnRes || wikiEnRes;
+  const instantAnswer =
+    wiki?.extract ||
+    ddgRes?.Abstract ||
+    `গুগল ও ওয়েব থেকে "${safeQuery}" সম্পর্কিত রিয়েল-টাইম তথ্য এবং সরাসরি সংযোগ প্রস্তুত করা হয়েছে।`;
+
+  const topVideo = directYt && directYt.length > 0 ? directYt[0] : undefined;
+  const results: Array<any> = [];
+
+  // Top Wikipedia result
+  if (wiki?.title && wiki?.content_urls?.desktop?.page) {
+    results.push({
+      title: `${wiki.title} - Wikipedia`,
+      url: wiki.content_urls.desktop.page,
+      domain: 'wikipedia.org',
+      snippet: wiki.extract ? wiki.extract.slice(0, 220) : 'উইকিপিডিয়া তথ্য ও বিবরণী।',
+    });
+  }
+
+  // Related DDG topics
+  if (Array.isArray(ddgRes?.RelatedTopics)) {
+    for (const item of ddgRes.RelatedTopics.slice(0, 4)) {
+      if (item.Text && item.FirstURL) {
+        results.push({
+          title: item.Text.split(' - ')[0] || safeQuery,
+          url: item.FirstURL,
+          domain: new URL(item.FirstURL).hostname || 'duckduckgo.com',
+          snippet: item.Text,
+        });
+      }
+    }
+  }
+
+  // Direct YouTube videos
+  if (directYt && directYt.length > 0) {
+    for (const v of directYt.slice(0, 3)) {
+      results.push({
+        title: `${v.title} - YouTube`,
+        url: v.url,
+        domain: 'youtube.com',
+        snippet: `${v.author} এর অফিসিয়াল ভিডিও ও গান সরাসরি শুনুন এবং দেখুন।`,
+      });
+    }
+  }
+
+  // Standard Google Resources Links
+  results.push(
+    {
+      title: `${safeQuery} - Google Search`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(safeQuery)}`,
+      domain: 'google.com',
+      snippet: `গুগলে "${safeQuery}" নিয়ে ওয়েব পেজ, তথ্য, ছবি ও অনুসন্ধান।`,
+    },
+    {
+      title: `${safeQuery} - YouTube Music`,
+      url: `https://music.youtube.com/search?q=${encodeURIComponent(safeQuery)}`,
+      domain: 'music.youtube.com',
+      snippet: `YouTube Music-এ "${safeQuery}" এর হাই কোয়ালিটি অডিও ট্র্যাক স্ট্রিম করুন।`,
+    },
+    {
+      title: `${safeQuery} - Google News`,
+      url: `https://news.google.com/search?q=${encodeURIComponent(safeQuery)}`,
+      domain: 'news.google.com',
+      snippet: `গুগল নিউজে "${safeQuery}" এর সাম্প্রতিক খবর ও তাজা আপডেট।`,
+    }
+  );
+
+  return {
+    query: safeQuery,
+    instantAnswer,
+    knowledgeCard: wiki?.title
+      ? {
+          title: wiki.title,
+          subtitle: wiki.description || 'Verified Encyclopedia Overview',
+          description: wiki.extract || '',
+          fields: [
+            { label: 'উৎস (Source)', value: 'Wikipedia & Live Web' },
+            { label: 'অনুসন্ধান', value: safeQuery },
+          ],
+        }
+      : {
+          title: safeQuery,
+          subtitle: 'Google Live Search',
+          description: instantAnswer,
+          fields: [
+            { label: 'স্ট্যাটাস', value: 'সক্রিয় (Active)' },
+            { label: 'অনুসন্ধান', value: safeQuery },
+          ],
+        },
+    results,
+    youtubeMedia: topVideo
+      ? {
+          videoId: topVideo.videoId,
+          title: topVideo.title,
+          artist: topVideo.author,
+          watchUrl: topVideo.url,
+          musicUrl: `https://music.youtube.com/search?q=${encodeURIComponent(safeQuery)}`,
+        }
+      : undefined,
+  };
+}
+
+// In-App Mini Google Web Browser: Live Google Search API with Grounding & Instant Fallback
+app.post('/api/mini-browser/search', async (req, res) => {
+  const { query } = req.body || {};
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({ error: 'Search query is required.' });
+  }
+
+  const safeQuery = query.trim();
+
+  try {
     const ai = getAIClient();
     const systemPrompt = `You are the backend engine for an in-app Mini Google Web Browser.
 Search Google in real time and return comprehensive search results for the user query.
@@ -898,7 +1025,7 @@ Return your response in clean JSON format:
     "subtitle": "Artist, Year, Genre, or Domain",
     "description": "Brief factual overview",
     "fields": [
-      { "label": "শিল্পী / তথ্য", "value": "..." }
+      { "label": "তথ্য", "value": "..." }
     ]
   },
   "results": [
@@ -910,7 +1037,7 @@ Return your response in clean JSON format:
     }
   ],
   "youtubeMedia": {
-    "videoId": "11-character video ID if a song or video is queried (e.g. Vny_75WmEH4)",
+    "videoId": "11-character video ID if a song or video is queried",
     "title": "Exact song / video title",
     "artist": "Singer / Channel name",
     "watchUrl": "https://www.youtube.com/watch?v=...",
@@ -919,112 +1046,51 @@ Return your response in clean JSON format:
 }
 CRITICAL: Output ONLY valid JSON, with no markdown code fences or backticks.`;
 
-    const response = await fetchContentWithResilience(
+    const geminiPromise = fetchContentWithResilience(
       ai,
-      [{ role: 'user', parts: [{ text: `Search Google for: "${query.trim()}"` }] }],
+      [{ role: 'user', parts: [{ text: `Search Google for: "${safeQuery}"` }] }],
       systemPrompt,
       true, // enable Google Search Grounding!
       'gemini-3.8-flash'
     );
 
-    let rawText = response.text || '';
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('GEMINI_SEARCH_TIMEOUT')), 3800)
+    );
+
+    const response: any = await Promise.race([geminiPromise, timeoutPromise]);
+    let rawText = response?.text || '';
     rawText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
 
-    try {
-      const data = JSON.parse(rawText);
-      const candidate = (response as any)?.candidates?.[0];
-      const groundingChunks = (candidate?.groundingMetadata?.groundingChunks || [])
-        .map((c: any) => c.web)
-        .filter(Boolean);
+    const data = JSON.parse(rawText);
+    const candidate = response?.candidates?.[0];
+    const groundingChunks = (candidate?.groundingMetadata?.groundingChunks || [])
+      .map((c: any) => c.web)
+      .filter(Boolean);
 
-      // Verify and extract real YouTube video links from Google Grounding chunks
-      for (const chunk of groundingChunks) {
-        if (!chunk.uri) continue;
-        const ytMatch = chunk.uri.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/i);
-        if (ytMatch && ytMatch[1]) {
-          const verifiedId = ytMatch[1];
-          if (!data.youtubeMedia) {
-            data.youtubeMedia = {};
-          }
-          data.youtubeMedia.videoId = verifiedId;
-          data.youtubeMedia.watchUrl = `https://www.youtube.com/watch?v=${verifiedId}`;
-          if (!data.youtubeMedia.title) {
-            data.youtubeMedia.title = chunk.title || query;
-          }
-          break;
-        }
-      }
-
-      // If no verified YouTube media was extracted from grounding, use direct YouTube search
-      if (!data.youtubeMedia?.videoId) {
-        const directYt = await searchYouTubeDirect(query);
-        if (directYt.length > 0) {
-          const top = directYt[0];
-          data.youtubeMedia = {
-            videoId: top.videoId,
-            title: top.title,
-            artist: top.author,
-            watchUrl: top.url,
-            musicUrl: `https://music.youtube.com/search?q=${encodeURIComponent(query)}`,
-          };
-        }
-      }
-
-      res.json({
-        ...data,
-        groundingSources: groundingChunks,
-      });
-    } catch {
-      const directYt = await searchYouTubeDirect(query);
-      const top = directYt[0];
-      res.json({
-        query,
-        instantAnswer: rawText.slice(0, 300),
-        youtubeMedia: top ? {
+    // Verify YouTube media
+    if (!data.youtubeMedia?.videoId) {
+      const directYt = await searchYouTubeDirect(safeQuery);
+      if (directYt.length > 0) {
+        const top = directYt[0];
+        data.youtubeMedia = {
           videoId: top.videoId,
           title: top.title,
           artist: top.author,
           watchUrl: top.url,
-          musicUrl: `https://music.youtube.com/search?q=${encodeURIComponent(query)}`,
-        } : undefined,
-        results: [
-          {
-            title: `${query} - Google Search`,
-            url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-            domain: 'google.com',
-            snippet: rawText.slice(0, 200),
-          },
-        ],
-      });
+          musicUrl: `https://music.youtube.com/search?q=${encodeURIComponent(safeQuery)}`,
+        };
+      }
     }
-  } catch (error: any) {
-    console.error('Error in /api/mini-browser/search:', error?.message || error);
-    const { query } = req.body || {};
-    const safeQuery = query ? String(query).trim() : 'Google Search';
-    res.json({
-      query: safeQuery,
-      instantAnswer: `গুগলে "${safeQuery}" সার্চ রেজাল্ট এবং সরাসরি সংযোগ প্রস্তুত করা হয়েছে।`,
-      results: [
-        {
-          title: `${safeQuery} - YouTube Video / Song`,
-          url: `https://www.youtube.com/results?search_query=${encodeURIComponent(safeQuery)}`,
-          domain: 'youtube.com',
-          snippet: `YouTube-এ "${safeQuery}" গান এবং অফিসিয়াল মিউজিক ভিডিও সরাসরি শুনুন ও দেখুন।`
-        },
-        {
-          title: `${safeQuery} - Google Search`,
-          url: `https://www.google.com/search?q=${encodeURIComponent(safeQuery)}`,
-          domain: 'google.com',
-          snippet: `Google-এ "${safeQuery}" সম্পর্কিত সমস্ত তথ্য, লিরিক্স এবং ওয়েব রেজাল্ট।`
-        },
-        {
-          title: `${safeQuery} - YouTube Music`,
-          url: `https://music.youtube.com/search?q=${encodeURIComponent(safeQuery)}`,
-          domain: 'music.youtube.com',
-          snippet: `YouTube Music-এ "${safeQuery}" এর হাই কোয়ালিটি অডিও স্ট্রিম করুন।`
-        }
-      ]
+
+    return res.json({
+      ...data,
+      groundingSources: groundingChunks,
     });
+  } catch (err: any) {
+    console.warn('Gemini search grounding fallback triggered for query:', safeQuery, err?.message);
+    const fallbackData = await getFastLiveSearchResults(safeQuery);
+    return res.json(fallbackData);
   }
 });
 
