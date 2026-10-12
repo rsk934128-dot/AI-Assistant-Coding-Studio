@@ -74,9 +74,11 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
     window.location.reload();
   };
 
-  const fetchHealth = async () => {
-    setLoadingHealth(true);
-    setHealthError(null);
+  const fetchHealth = async (silent = false) => {
+    if (!silent) {
+      setLoadingHealth(true);
+      setHealthError(null);
+    }
 
     const endpointsToTry = [
       `/api/health?_t=${Date.now()}`,
@@ -86,7 +88,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
 
     let lastErrorMsg = '';
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 4; attempt++) {
       for (const endpoint of endpointsToTry) {
         try {
           const res = await fetch(endpoint, {
@@ -126,7 +128,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
             const rawErr = parsedData?.error || parsedData?.message;
             const errStr = typeof rawErr === 'object' ? JSON.stringify(rawErr) : (rawErr ? String(rawErr) : '');
             if (res.status === 500) {
-              lastErrorMsg = `ক্লাউড প্রক্সি বা ব্যাকএন্ড সার্ভারে সংযোগ মুহূর্তের জন্য স্থগিত ছিল${errStr ? ` (${errStr})` : ''}।`;
+              lastErrorMsg = `ক্লাউড প্রক্সি বা ব্যাকএন্ড সার্ভারে সংযোগ মুহূর্তের জন্য স্থগিত ছিল${errStr ? ` (${errStr})` : ''}। কন্টেইনার প্রস্তুত হলে স্বয়ংক্রিয়ভাবে সংযুক্ত হবে।`;
             } else if (res.status === 404) {
               lastErrorMsg = 'সার্ভার অ্যান্ডপয়েন্ট প্রস্তুত হচ্ছে (HTTP 404)।';
             } else {
@@ -138,12 +140,12 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
         }
       }
 
-      if (attempt < 3) {
-        await new Promise((r) => setTimeout(r, attempt * 900));
+      if (attempt < 4) {
+        await new Promise((r) => setTimeout(r, attempt * 800));
       }
     }
 
-    setHealthError(lastErrorMsg || 'ক্লাউড সার্ভার সংযোগ সাময়িকভাবে সময় নিচ্ছে। নিচের "পুনরায় পরীক্ষা করুন" বাটনে ক্লিক করুন।');
+    setHealthError(lastErrorMsg || 'ক্লাউড সার্ভার সংযোগ সাময়িকভাবে সময় নিচ্ছে। নিচের "এখনই পুনঃসংযোগ পরীক্ষা করুন" বাটনে ক্লিক করুন।');
     setLoadingHealth(false);
   };
 
@@ -259,6 +261,15 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
       fetchHealth();
     }
   }, [isOpen]);
+
+  // If a temporary health error occurred (e.g. during server restart/warmup), automatically recheck after 2.5 seconds
+  useEffect(() => {
+    if (!isOpen || !healthError) return;
+    const timer = setTimeout(() => {
+      fetchHealth(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [isOpen, healthError]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -383,7 +394,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                     সার্ভার হেলথ স্ট্যাটাস
                   </span>
                   <button
-                    onClick={fetchHealth}
+                    onClick={() => fetchHealth()}
                     disabled={loadingHealth}
                     className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer disabled:opacity-50"
                   >
@@ -407,7 +418,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                     <div className="pl-5 pt-1 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={fetchHealth}
+                        onClick={() => fetchHealth()}
                         className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                       >
                         <RotateCw className="w-3.5 h-3.5" />

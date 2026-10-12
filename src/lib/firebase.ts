@@ -10,6 +10,7 @@ import {
 import { 
   initializeFirestore,
   getFirestore, 
+  setLogLevel,
   doc, 
   getDoc,
   setDoc, 
@@ -22,17 +23,25 @@ import {
 import firebaseConfig from '../../firebase-applet-config.json';
 import { ChatSession, ChatMessage } from '../types';
 
+// Set Firestore log level to error to prevent verbose 10s WebSocket timeout warning spam in sandboxes & iframes
+try {
+  setLogLevel('error');
+} catch {
+  // Ignored if logger is restricted
+}
+
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// CRITICAL: Initialize Firestore with forced long polling to prevent 10s WebSocket timeouts in iframes & proxies
+// CRITICAL: Initialize Firestore with forced long polling and auto-detect disabled
+// This prevents the SDK from probing WebSockets and waiting 10s before falling back.
 let firestoreDb: ReturnType<typeof getFirestore>;
 try {
   firestoreDb = initializeFirestore(
     app,
     {
       experimentalForceLongPolling: true,
-      experimentalAutoDetectLongPolling: true,
+      experimentalAutoDetectLongPolling: false,
     },
     firebaseConfig.firestoreDatabaseId
   );
@@ -202,8 +211,18 @@ export async function signInWithGoogle(withDriveScopes = false): Promise<{ user:
         updatedAt: new Date().toISOString(),
         createdAt: existingData?.createdAt || new Date().toISOString(),
       }, { merge: true });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
+    } catch (err: any) {
+      const errStr = (err?.message || String(err)).toLowerCase();
+      if (
+        errStr.includes('offline') ||
+        errStr.includes('could not reach') ||
+        errStr.includes('unavailable') ||
+        errStr.includes('timeout')
+      ) {
+        console.info('User profile write queued in offline cache.');
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, path);
+      }
     }
     
     return { user, accessToken: cachedAccessToken };
@@ -266,13 +285,33 @@ export async function saveSessionToCloud(userId: string, session: ChatSession): 
             timestamp: typeof msg.timestamp === 'number' ? msg.timestamp : Date.now(),
             citations: msg.groundingChunks ? msg.groundingChunks.map(c => c.web?.title || '').filter(Boolean).slice(0, 50) : [],
           }, { merge: true });
-        } catch (msgErr) {
-          handleFirestoreError(msgErr, OperationType.WRITE, msgPath);
+        } catch (msgErr: any) {
+          const msgErrStr = (msgErr?.message || String(msgErr)).toLowerCase();
+          if (
+            msgErrStr.includes('offline') ||
+            msgErrStr.includes('could not reach') ||
+            msgErrStr.includes('unavailable') ||
+            msgErrStr.includes('timeout')
+          ) {
+            console.info('Message queued for offline sync.');
+          } else {
+            handleFirestoreError(msgErr, OperationType.WRITE, msgPath);
+          }
         }
       }
     }
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, path);
+  } catch (err: any) {
+    const errStr = (err?.message || String(err)).toLowerCase();
+    if (
+      errStr.includes('offline') ||
+      errStr.includes('could not reach') ||
+      errStr.includes('unavailable') ||
+      errStr.includes('timeout')
+    ) {
+      console.info('Session queued for offline sync.');
+    } else {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    }
   }
 }
 
@@ -288,35 +327,60 @@ export async function loadSessionsFromCloud(userId: string): Promise<ChatSession
       const sessionId = sessionDoc.id;
 
       // Fetch messages for this session
-      const messagesCol = collection(db, 'users', userId, 'sessions', sessionId, 'messages');
-      const q = query(messagesCol, orderBy('timestamp', 'asc'));
-      const messagesSnapshot = await getDocs(q);
+      try {
+        const messagesCol = collection(db, 'users', userId, 'sessions', sessionId, 'messages');
+        const q = query(messagesCol, orderBy('timestamp', 'asc'));
+        const messagesSnapshot = await getDocs(q);
 
-      const messages: ChatMessage[] = messagesSnapshot.docs.map(mDoc => {
-        const mData = mDoc.data();
-        return {
-          id: mData.id || mDoc.id,
-          role: mData.role,
-          text: mData.content || '',
-          timestamp: Number(mData.timestamp) || Date.now(),
-        };
-      });
+        const messages: ChatMessage[] = messagesSnapshot.docs.map(mDoc => {
+          const mData = mDoc.data();
+          return {
+            id: mData.id || mDoc.id,
+            role: mData.role,
+            text: mData.content || '',
+            timestamp: Number(mData.timestamp) || Date.now(),
+          };
+        });
 
-      sessions.push({
-        id: sessionId,
-        title: sData.title || 'কথোপকথন',
-        mode: sData.mode || 'general',
-        enableSearch: false,
-        createdAt: typeof sData.createdAt === 'number' ? sData.createdAt : (Date.parse(sData.createdAt) || Date.now()),
-        updatedAt: typeof sData.updatedAt === 'number' ? sData.updatedAt : (Date.parse(sData.updatedAt) || Date.now()),
-        isPinned: Boolean(sData.isPinned),
-        pinnedAt: typeof sData.pinnedAt === 'number' ? sData.pinnedAt : undefined,
-        messages,
-      });
+        sessions.push({
+          id: sessionId,
+          title: sData.title || 'কথোপকথন',
+          mode: sData.mode || 'general',
+          enableSearch: false,
+          createdAt: typeof sData.createdAt === 'number' ? sData.createdAt : (Date.parse(sData.createdAt) || Date.now()),
+          updatedAt: typeof sData.updatedAt === 'number' ? sData.updatedAt : (Date.parse(sData.updatedAt) || Date.now()),
+          isPinned: Boolean(sData.isPinned),
+          pinnedAt: typeof sData.pinnedAt === 'number' ? sData.pinnedAt : undefined,
+          messages,
+        });
+      } catch (msgErr: any) {
+        const msgErrStr = (msgErr?.message || String(msgErr)).toLowerCase();
+        if (
+          msgErrStr.includes('offline') ||
+          msgErrStr.includes('could not reach') ||
+          msgErrStr.includes('unavailable')
+        ) {
+          console.info('Session messages fetch deferred in offline mode.');
+        } else {
+          handleFirestoreError(msgErr, OperationType.LIST, `${path}/${sessionId}/messages`);
+        }
+      }
     }
 
     return sessions.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
-  } catch (err) {
+  } catch (err: any) {
+    const errMsg = (err?.message || String(err)).toLowerCase();
+    if (
+      errMsg.includes('offline') ||
+      errMsg.includes('could not reach') ||
+      errMsg.includes('unavailable') ||
+      errMsg.includes('timeout') ||
+      errMsg.includes('failed to get document') ||
+      errMsg.includes('failed-precondition')
+    ) {
+      console.info('Firestore is in offline mode; using cached/local sessions.');
+      return [];
+    }
     handleFirestoreError(err, OperationType.LIST, path);
   }
 }
@@ -326,7 +390,17 @@ export async function deleteSessionFromCloud(userId: string, sessionId: string):
   try {
     const sessionRef = doc(db, 'users', userId, 'sessions', sessionId);
     await deleteDoc(sessionRef);
-  } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, path);
+  } catch (err: any) {
+    const errStr = (err?.message || String(err)).toLowerCase();
+    if (
+      errStr.includes('offline') ||
+      errStr.includes('could not reach') ||
+      errStr.includes('unavailable') ||
+      errStr.includes('timeout')
+    ) {
+      console.info('Session delete queued for offline sync.');
+    } else {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
   }
 }

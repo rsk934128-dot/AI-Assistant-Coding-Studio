@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth, signInWithGoogle, signOutUser, testFirestoreConnection } from '../lib/firebase';
+import { auth, signInWithGoogle, signOutUser } from '../lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -36,9 +36,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
-    // Test initial connection
-    testFirestoreConnection();
-
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
