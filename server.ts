@@ -8,6 +8,12 @@ import { createServer as createViteServer } from 'vite';
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+export const FALLBACK_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+];
+
 // Enable CORS for hosted environments and cross-origin clients
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -75,16 +81,25 @@ function getAIClient() {
 
 // Health check endpoint with hosting diagnostics
 app.all(['/api/health', '/api/health/'], (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  res.json({
-    success: true,
-    status: 'ok',
-    hasApiKey: Boolean(apiKey && apiKey.length > 0),
-    port: PORT,
-    nodeEnv: process.env.NODE_ENV || 'development',
-    time: new Date().toISOString(),
-    supportedModels: FALLBACK_MODELS,
-  });
+  try {
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    res.json({
+      success: true,
+      status: 'ok',
+      hasApiKey: Boolean(apiKey && apiKey.length > 0),
+      port: PORT,
+      nodeEnv: process.env.NODE_ENV || 'development',
+      time: new Date().toISOString(),
+      supportedModels: FALLBACK_MODELS,
+    });
+  } catch (err: any) {
+    console.error('Health check endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      status: 'error',
+      error: 'Health check failed: ' + (err?.message || String(err)),
+    });
+  }
 });
 
 // Natural Human-Like Text-to-Speech (TTS) Audio Stream Proxy for Bengali & English
@@ -157,12 +172,6 @@ function formatFriendlyErrorMessage(err: any): string {
   }
   return err?.message || 'একটি অপ্রত্যাশিত সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
 }
-
-const FALLBACK_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
-  'gemini-3.1-flash-lite',
-];
 
 async function fetchStreamWithResilience(
   ai: any,

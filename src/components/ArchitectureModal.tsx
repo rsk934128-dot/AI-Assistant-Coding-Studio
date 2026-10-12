@@ -53,15 +53,18 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({
       if (res.status === 404) {
         throw new Error('সার্ভার এন্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)। ব্যাকএন্ড Express সার্ভার চালু নেই।');
       }
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
       const rawText = await res.text();
       let data: any = null;
       try {
         data = JSON.parse(rawText);
       } catch {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText || 'সার্ভার ত্রুটি'}`);
+        }
         throw new Error('সার্ভার থেকে JSON এর বদলে HTML পাওয়া গেছে।');
+      }
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}: ${res.statusText}`);
       }
       setHealthData({
         ...data,

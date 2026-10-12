@@ -85,12 +85,6 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
         },
         cache: 'no-store',
       });
-      if (res.status === 404) {
-        throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। অ্যাপটি কেবল স্ট্যাটিক হোস্টিংয়ে রান করছে, ব্যাকএন্ড Express সার্ভার বা সার্ভারলেস ফাংশন চালু নেই।');
-      }
-      if (!res.ok) {
-        throw new Error(`সার্ভার স্ট্যাটাস কোড: ${res.status}`);
-      }
       const rawText = await res.text();
       let data: HealthData | null = null;
       try {
@@ -100,8 +94,26 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
         }
+        if (res.status === 404) {
+          throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। অ্যাপটি কেবল স্ট্যাটিক হোস্টিংয়ে রান করছে, ব্যাকএন্ড Express সার্ভার বা সার্ভারলেস ফাংশন চালু নেই।');
+        }
+        if (!res.ok) {
+          throw new Error(`সার্ভার স্ট্যাটাস কোড: ${res.status} (সার্ভার থেকে এইচটিএমএল পেজ ফেরত এসেছে)`);
+        }
         throw new Error('সার্ভার থেকে JSON এর বদলে HTML পেজ পাওয়া গেছে। এটি ব্রাউজার সার্ভিস ওয়ার্কার বা ক্যাশ ইন্টারসেপশনের কারণে হতে পারে। নিচের "ক্যাশ ও SW রিসেট" বাটনে ক্লিক করে রিলোড দিন।');
       }
+
+      if (!res.ok) {
+        const errorDetail = (data as any)?.error || (data as any)?.message;
+        if (res.status === 404) {
+          throw new Error('সার্ভার স্ট্যাটাস কোড: 404 (Not Found)। ব্যাকএন্ড Express সার্ভার বা API চালু নেই।');
+        }
+        if (res.status === 500) {
+          throw new Error(`সার্ভার স্ট্যাটাস কোড: 500${errorDetail ? ` - ${errorDetail}` : ' (Internal Server Error)'}। ব্যাকএন্ড সার্ভারে সাময়িক সমস্যা হয়েছে, রিলোড বা রিফ্রেশ দিয়ে পুনরায় পরীক্ষা করুন।`);
+        }
+        throw new Error(`সার্ভার স্ট্যাটাস কোড: ${res.status}${errorDetail ? ` - ${errorDetail}` : ''}`);
+      }
+
       setHealth(data);
     } catch (err: any) {
       console.error('Failed to fetch /api/health:', err);
