@@ -148,6 +148,8 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
   const lastHandledQueryRef = useRef<string | null>(null);
   const lastHandledUrlRef = useRef<string | null>(null);
   const lastHandledVideoRef = useRef<string | null>(null);
+  const browserContentRef = useRef<HTMLDivElement>(null);
+  const ytPlayerBoxRef = useRef<HTMLDivElement>(null);
 
   const musicPlayer = useMusicPlayer();
   const [ytVideos, setYtVideos] = useState<YouTubeSearchResult[]>([]);
@@ -157,6 +159,14 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
   // Local copy of active video for navigation history
   const [navVideoId, setNavVideoId] = useState<string | undefined>(activeVideoId);
   const [navVideoTitle, setNavVideoTitle] = useState<string | undefined>(activeVideoTitle);
+
+  // Automatically scroll directly to the video watching player when a YouTube video is played
+  useEffect(() => {
+    if (activeTab === 'youtube' && (navVideoId || activeVideoId)) {
+      browserContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      ytPlayerBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [activeTab, navVideoId, activeVideoId]);
 
   // Navigation History Stack
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -1168,7 +1178,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
         </div>
 
         {/* Browser Viewport Content Area */}
-        <div className="flex-1 overflow-y-auto bg-stone-950 p-4 space-y-4">
+        <div ref={browserContentRef} className="flex-1 overflow-y-auto bg-stone-950 p-4 space-y-4">
           {/* TAB 1: YOUTUBE & MUSIC WEB PLAYER */}
           {activeTab === 'youtube' && (
             <div className="space-y-4 max-w-3xl mx-auto">
@@ -1219,7 +1229,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
 
               {/* Embedded Player */}
               {currentVideoId ? (
-                <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-stone-800 shadow-2xl">
+                <div ref={ytPlayerBoxRef} className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-stone-800 shadow-2xl">
                   <iframe
                     key={`yt-${currentVideoId}-${refreshKey}`}
                     src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
@@ -1373,6 +1383,8 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
                                   videoId: video.videoId,
                                   videoTitle: video.title,
                                 });
+                                browserContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                                ytPlayerBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                               }}
                               className="px-2 py-0.5 rounded-md bg-red-600 hover:bg-red-500 text-white font-medium text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
                             >

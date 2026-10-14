@@ -43,6 +43,7 @@ import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { ChatMessage, GroundingChunk } from '../types';
 import { ContinuousTTSPlayer } from '../utils/textToSpeech';
 import { highlightCode, normalizeLanguage, getExtensionForLanguage } from '../utils/prismLanguages';
+import { SearchGroundingSources } from './SearchGroundingSources';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -1149,93 +1150,12 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             <span className="inline-block w-2 h-4 ml-1 align-middle bg-emerald-500 animate-pulse rounded-xs" />
           )}
 
-          {/* Google Search Grounding Sources */}
-          {message.groundingChunks && message.groundingChunks.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-stone-200 dark:border-stone-800">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-600 dark:text-stone-300 mb-2.5">
-                <Globe className="w-3.5 h-3.5 text-blue-500" />
-                <span>তথ্যসূত্র ও গুগল সার্চ গ্রাউন্ডিং (Google Search Sources)</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {message.groundingChunks.map((chunk, idx) => {
-                  if (!chunk.web) return null;
-                  const domain = (() => {
-                    try {
-                      return new URL(chunk.web.uri).hostname.replace('www.', '');
-                    } catch {
-                      return 'source';
-                    }
-                  })();
-
-                  return (
-                    <div
-                      key={idx}
-                      className="p-2.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-800/60 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 transition-all flex items-start justify-between gap-2 group/link text-xs"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          miniBrowser.openBrowser(chunk.web!.uri, 'web', {
-                            urls: [{ url: chunk.web!.uri, title: chunk.web!.title || domain }],
-                          });
-                        }}
-                        className="min-w-0 text-left cursor-pointer flex-1"
-                        title="ইন-অ্যাপ মিনি গুগল ব্রাউজারে পড়ুন"
-                      >
-                        <p className="font-medium text-stone-900 dark:text-stone-100 truncate group-hover/link:text-blue-600 dark:group-hover/link:text-blue-400">
-                          {chunk.web.title || domain}
-                        </p>
-                        <p className="text-[11px] text-stone-600 dark:text-stone-400 truncate mt-0.5 flex items-center gap-1">
-                          <Globe className="w-2.5 h-2.5 text-blue-500" />
-                          <span>{domain}</span>
-                        </p>
-                      </button>
-                      <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            miniBrowser.openBrowser(chunk.web!.uri, 'web');
-                          }}
-                          className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 cursor-pointer"
-                          title="মিনি ব্রাউজারে দেখুন"
-                        >
-                          <Globe className="w-3.5 h-3.5" />
-                        </button>
-                        <a
-                          href={chunk.web.uri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-400 hover:text-stone-200"
-                          title="নতুন ট্যাবে খুলুন"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Search Queries used */}
-          {message.searchQueries && message.searchQueries.length > 0 && (
-            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-stone-600 dark:text-stone-400">অনুসন্ধান:</span>
-              {message.searchQueries.map((q, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => miniBrowser.openBrowser(q, 'search')}
-                  className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-100 hover:bg-blue-50 dark:bg-stone-800 dark:hover:bg-blue-950/40 text-stone-600 hover:text-blue-600 dark:text-stone-300 dark:hover:text-blue-300 border border-stone-200 hover:border-blue-300 dark:border-stone-700 transition-colors cursor-pointer"
-                  title={`মিনি ব্রাউজারে '${q}' অনুসন্ধান করুন`}
-                >
-                  <Search className="w-2.5 h-2.5 text-blue-500" />
-                  <span>"{q}"</span>
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Google Search Grounding Sources & Search Query Cards */}
+          <SearchGroundingSources
+            groundingChunks={message.groundingChunks}
+            searchQueries={message.searchQueries}
+            onOpenBrowser={(url, type, context) => miniBrowser.openBrowser(url, type, context)}
+          />
 
           {/* Assistant Action bar */}
           {!isUser && !message.isStreaming && message.text && (

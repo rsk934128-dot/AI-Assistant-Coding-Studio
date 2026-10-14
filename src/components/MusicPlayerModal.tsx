@@ -103,6 +103,13 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     };
   }, []);
 
+  // When player opens or a new video track is played, automatically scroll smoothly to the video player at the top
+  useEffect(() => {
+    if (isOpen && !isMinimized && containerRef.current) {
+      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [isOpen, isMinimized, currentTrack?.videoId]);
+
   if (!isOpen || !currentTrack) return null;
 
   const { videoId, title, originalUrl, searchQuery } = currentTrack;
@@ -465,6 +472,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                           type="button"
                           onClick={() => {
                             playVideoId(alt.videoId, alt.title, { autoPlay: true });
+                            containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
                           className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
                         >

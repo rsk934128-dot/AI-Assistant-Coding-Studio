@@ -33,7 +33,7 @@ import { HostingDiagnosticModal } from './components/HostingDiagnosticModal';
 import { CitizenServicesModal } from './components/CitizenServicesModal';
 import { FreelanceAgentModal } from './components/FreelanceAgentModal';
 import { LiveLocationModal } from './components/LiveLocationModal';
-import { callDirectGeminiStream, generateDirectSessionTitle } from './lib/directGemini';
+import { callDirectGeminiStream, generateDirectSessionTitle, isDirectGeminiAvailable } from './lib/directGemini';
 import { useLiveLocation } from './hooks/useLiveLocation';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AppLogo } from './components/AppLogo';
@@ -90,7 +90,7 @@ export default function App() {
       updatedAt: Date.now(),
       messages: [],
       mode: 'general',
-      enableSearch: false,
+      enableSearch: true,
     };
     return [initialSession];
   });
@@ -291,7 +291,7 @@ export default function App() {
       updatedAt: Date.now(),
       messages: [],
       mode: 'general',
-      enableSearch: false,
+      enableSearch: true,
     };
     setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
@@ -457,26 +457,53 @@ export default function App() {
       let useDirectFallback = false;
       let response: Response | null = null;
 
-      try {
-        response = await fetch('/api/chat/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: updatedMessages.map((m) => ({ role: m.role, text: m.text })),
-            prompt: promptText,
-            enableSearch,
-            mode,
-          }),
-          signal: controller.signal,
-        });
+      // When hosted, containers may cold-start or proxy may briefly pause.
+      // We perform an automatic fast-retry on transient 5xx errors before failing.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          response = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: updatedMessages.map((m) => ({ role: m.role, text: m.text })),
+              prompt: promptText,
+              enableSearch,
+              mode,
+            }),
+            signal: controller.signal,
+          });
 
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('text/html') || response.status === 404) {
-          useDirectFallback = true;
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('text/html') || response.status === 404) {
+            if (isDirectGeminiAvailable()) {
+              useDirectFallback = true;
+            }
+            break;
+          }
+
+          if (response.status >= 500 && response.status <= 504) {
+            if (attempt === 1) {
+              await new Promise((r) => setTimeout(r, 1200));
+              continue;
+            }
+            if (isDirectGeminiAvailable()) {
+              useDirectFallback = true;
+              break;
+            }
+          }
+          break;
+        } catch (networkErr: any) {
+          if (controller.signal.aborted) throw networkErr;
+          if (attempt === 1) {
+            await new Promise((r) => setTimeout(r, 1000));
+            continue;
+          }
+          if (isDirectGeminiAvailable()) {
+            useDirectFallback = true;
+            break;
+          }
+          throw networkErr;
         }
-      } catch (networkErr: any) {
-        if (controller.signal.aborted) throw networkErr;
-        useDirectFallback = true;
       }
 
       // If server is not responding (static deployment without Node backend), run direct Gemini client
@@ -501,7 +528,11 @@ export default function App() {
             }));
           },
           onGrounding: (grounding) => {
-            accumulatedGrounding = [grounding];
+            if (grounding?.groundingChunks) {
+              accumulatedGrounding = grounding.groundingChunks;
+            } else if (Array.isArray(grounding)) {
+              accumulatedGrounding = grounding;
+            }
           },
           onSearchQueries: (queries) => {
             searchQueries = queries;
@@ -518,7 +549,7 @@ export default function App() {
                   ...m,
                   text: finalAssistantText,
                   isStreaming: false,
-                  groundingMetadata: accumulatedGrounding.length > 0 ? accumulatedGrounding : undefined,
+                  groundingChunks: accumulatedGrounding.length > 0 ? accumulatedGrounding : undefined,
                   searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
                 }
               : m
@@ -544,11 +575,13 @@ export default function App() {
           }
         } catch {
           if (response.status === 404) {
-            errorMsg = 'সার্ভার এন্ডপয়েন্ট বা এআই প্রক্সি পাওয়া যায়নি (HTTP 404)।';
-          } else if (response.status === 502 || response.status === 503) {
-            errorMsg = 'হোস্টিং সার্ভার বা গুগল এআই সাময়িকভাবে রেসপন্স করছে না (HTTP ' + response.status + ')।';
+            errorMsg = 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404)। আপনি কি স্ট্যাটিক হোস্টিংয়ে আছেন? হোস্টিং গাইড চেক করুন।';
+          } else if (response.status === 500) {
+            errorMsg = 'ক্লাউড সার্ভার বা প্রক্সি সংযোগ সাময়িকভাবে ব্যাহত হয়েছে (HTTP 500)। কন্টেইনার প্রস্তুত হলে আবার স্বাভাবিক হয়ে যাবে। নিচের "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন।';
+          } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+            errorMsg = 'হোস্টিং সার্ভার সাময়িকভাবে রেসপন্স করছে না (HTTP ' + response.status + ')। কন্টেইনার স্টার্ট হতে কয়েক সেকেন্ড সময় নিতে পারে।';
           } else if (response.status === 429) {
-            errorMsg = 'এআই কোটা সীমা (Rate Limit 429) শেষ হয়েছে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন।';
+            errorMsg = 'এআই কোটা সীমা (Rate Limit 429) সাময়িকভাবে শেষ হয়েছে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন।';
           }
         }
         throw new Error(errorMsg);

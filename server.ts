@@ -1,9 +1,18 @@
 process.env.DISABLE_HMR = 'true';
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
+
+const getAppDirname = () => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return process.cwd();
+  }
+};
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -77,11 +86,24 @@ app.all(['/api', '/api/'], (req, res) => {
 });
 
 
+// Helper to extract available Gemini API key from multiple common hosting variable names
+function getEffectiveGeminiApiKey(): string {
+  return (
+    process.env.GEMINI_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.API_KEY ||
+    ''
+  ).trim();
+}
+
 // Lazy GoogleGenAI client
 function getAIClient() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = getEffectiveGeminiApiKey();
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured in environment variables.');
+    throw new Error(
+      'GEMINI_API_KEY is not configured in environment variables. Please set GEMINI_API_KEY in your hosting dashboard (Cloud Run, Render, Railway, Vercel, etc.).'
+    );
   }
   return new GoogleGenAI({
     apiKey,
@@ -96,7 +118,7 @@ function getAIClient() {
 // Health check endpoint with hosting diagnostics
 app.all(['/api/health', '/api/health/'], (req, res) => {
   try {
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const apiKey = getEffectiveGeminiApiKey();
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -329,7 +351,7 @@ app.all('/api/health/test', async (req, res) => {
       [{ role: 'user', parts: [{ text: 'Respond with the single word: OK' }] }],
       'You are a health check agent. Return only OK.',
       false,
-      'gemini-3.8-flash'
+      'gemini-3.1-flash-lite'
     );
     const latency = Date.now() - startTime;
     res.json({
@@ -540,6 +562,7 @@ When code is requested, provide clean, idiomatic, runnable code with clear comme
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
 
     // Stream content with automatic retry and model/search fallbacks
@@ -1420,30 +1443,74 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        hmr: false,
-      },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+function serveStaticProduction() {
+  const cwdDist = path.join(process.cwd(), 'dist');
+  const appDir = getAppDirname();
+  const dirnameDist = path.resolve(appDir, appDir.endsWith('dist') ? '.' : 'dist');
+  const distPath = fs.existsSync(cwdDist) ? cwdDist : dirnameDist;
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+  app.use(express.static(distPath, { maxAge: '1d', index: false }));
+
+  // Immediate health check endpoints for Cloud Run & container orchestration
+  app.get(['/healthz', '/_health', '/api/healthz'], (req, res) => {
+    res.status(200).send('OK');
+  });
+
+  // Unmatched API requests in production must return JSON 404, never index.html
+  app.use('/api', (req, res) => {
+    res.status(404).json({
+      success: false,
+      error: `API route not found: ${req.method} ${req.originalUrl}`,
+    });
+  });
+
+  // SPA catch-all for HTML pages
+  app.get('*', (req, res) => {
+    const indexPath = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(200).send(
+        '<!DOCTYPE html><html><head><title>App Initializing</title></head><body><h1>Application Initializing</h1><p>Frontend static bundle not found. Please run: npm run build</p></body></html>'
+      );
+    }
   });
 }
 
-if (!process.env.VERCEL) {
+async function startServer() {
+  const distExists = fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'));
+  const isDevScript = process.env.npm_lifecycle_event === 'dev';
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.npm_lifecycle_event === 'start' ||
+    (distExists && !isDevScript);
+
+  if (!isProduction) {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: {
+          middlewareMode: true,
+          hmr: false,
+        },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.warn('Vite dev middleware failed to load, falling back to static server:', viteErr);
+      serveStaticProduction();
+    }
+  } else {
+    serveStaticProduction();
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
+  });
+}
+
+// In serverless environments (like Vercel, Netlify Functions, AWS Lambda), the platform manages request lifecycles
+if (!process.env.VERCEL && !process.env.NETLIFY && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   startServer();
 }
 
