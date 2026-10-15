@@ -48,6 +48,7 @@ import { FounderProfileModal } from './components/FounderProfileModal';
 import { LandingPageVideoShowcase } from './components/LandingPageVideoShowcase';
 import { UniversalAppsConnectModal, UniversalTab } from './components/UniversalAppsConnectModal';
 import { useAuth } from './context/AuthContext';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
 import workspaceHeroImg from './assets/images/ai_workspace_hero_1790066671032.jpg';
 import apiArchitectureImg from './assets/images/api_architecture_graphic_1790066692425.jpg';
@@ -672,7 +673,7 @@ export default function App() {
       }
 
       if (!hasReceivedError) {
-        const finalAssistantText = accumulatedText || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি। পুনরায় চেষ্টা করুন।';
+        const finalAssistantText = accumulatedText || 'দুঃখিত, কোনো উত্তর পাওয়া য���য়নি। পুনরায় চেষ্টা করুন।';
         // Finish streaming
         updateActiveSession((s) => ({
           ...s,
@@ -1089,7 +1090,7 @@ export default function App() {
               {/* 6 Core Pillars Info Bar */}
               <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/30">
                 <p className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-3">
-                  অ্যাসিস্ট্যান্টের ৬টি প্রধান কাজের ক্ষেত্র
+                  অ্যাসিস্ট্যান্টের ৬টি প্রধান কাজের ক���ষেত্র
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center text-xs">
                   <div className="p-2.5 rounded-xl bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60">
@@ -1359,6 +1360,9 @@ export default function App() {
 
       {/* PWA Offline Indicator */}
       <OfflineIndicator />
+      
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </div>
     </MiniBrowserProvider>
   </MusicPlayerProvider>
