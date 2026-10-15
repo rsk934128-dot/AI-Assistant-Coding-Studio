@@ -23,6 +23,10 @@ import {
   X,
   Gauge,
   Music,
+  Mail,
+  MessageSquare,
+  FolderGit2,
+  Phone,
   Youtube,
   Disc3,
   Share2,
@@ -212,6 +216,284 @@ const CodeBlockItem: React.FC<{
             />
           )}
         </pre>
+      </div>
+    </div>
+  );
+};
+
+const GmailActionCard: React.FC<{
+  href: string;
+  title: React.ReactNode;
+}> = ({ href, title }) => {
+  const [copied, setCopied] = useState(false);
+  
+  let to = '';
+  let su = '';
+  let body = '';
+
+  try {
+    if (href.startsWith('mailto:')) {
+      const parts = href.slice(7).split('?');
+      to = decodeURIComponent(parts[0] || '');
+      if (parts[1]) {
+        const q = new URLSearchParams(parts[1]);
+        su = q.get('subject') || '';
+        body = q.get('body') || '';
+      }
+    } else {
+      const url = new URL(href);
+      to = url.searchParams.get('to') || '';
+      su = url.searchParams.get('su') || url.searchParams.get('subject') || '';
+      body = url.searchParams.get('body') || '';
+    }
+  } catch (_) {}
+
+  const fullText = `To: ${to}\nSubject: ${su}\n\n${body}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(fullText.trim() ? fullText : href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const gmailComposeUrl = href.startsWith('https://mail.google.com')
+    ? href
+    : `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`;
+
+  return (
+    <div className="my-3.5 p-4 rounded-2xl border border-rose-500/40 bg-gradient-to-r from-rose-950/40 via-stone-900 to-stone-950 text-stone-100 shadow-xl space-y-3">
+      <div className="flex items-center justify-between gap-3 border-b border-stone-800 pb-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-600/30">
+            <Mail className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 font-mono text-[10px] font-bold">
+                Gmail Composer
+              </span>
+              <span className="text-[11px] text-stone-400">ইমেইল ড্রাফট</span>
+            </div>
+            <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+              {su || 'অফিশিয়াল ইমেইল বার্তা'}
+            </h4>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-300 text-xs transition-colors cursor-pointer shrink-0"
+          title="ইমেইল কপি করুন"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      <div className="space-y-1 text-xs text-stone-300">
+        {to && (
+          <p className="flex items-center gap-1.5">
+            <span className="text-stone-400">প্রাপক (To):</span>
+            <span className="font-mono text-rose-300">{to}</span>
+          </p>
+        )}
+        {body && (
+          <p className="p-2.5 rounded-xl bg-stone-950/80 border border-stone-800/80 text-[11px] text-stone-300 whitespace-pre-line line-clamp-3 leading-relaxed">
+            {body}
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <a
+          href={gmailComposeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md shadow-rose-600/30 transition-all"
+        >
+          <Mail className="w-3.5 h-3.5" />
+          <span>Gmail এ সরাসরি খুলুন ও পাঠান</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+
+        {to && (
+          <a
+            href={`mailto:${to}?subject=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-850 hover:bg-stone-750 text-stone-200 text-xs font-semibold transition-colors border border-stone-700"
+          >
+            <span>ডিফল্ট মেইলে</span>
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const WhatsAppActionCard: React.FC<{
+  href: string;
+  title: React.ReactNode;
+}> = ({ href, title }) => {
+  const [copied, setCopied] = useState(false);
+
+  let phone = '';
+  let text = '';
+
+  try {
+    const url = new URL(href);
+    phone = url.searchParams.get('phone') || '';
+    text = url.searchParams.get('text') || '';
+  } catch (_) {}
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text || href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="my-3.5 p-4 rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 via-stone-900 to-stone-950 text-stone-100 shadow-xl space-y-3">
+      <div className="flex items-center justify-between gap-3 border-b border-stone-800 pb-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/30">
+            <MessageSquare className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold">
+                WhatsApp Messenger
+              </span>
+              <span className="text-[11px] text-stone-400">সরাসরি বার্তা</span>
+            </div>
+            <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+              {phone ? `WhatsApp: ${phone}` : 'WhatsApp বার্তা'}
+            </h4>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-300 text-xs transition-colors cursor-pointer shrink-0"
+          title="মেসেজ কপি করুন"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      {text && (
+        <p className="p-2.5 rounded-xl bg-stone-950/80 border border-stone-800/80 text-[11px] text-stone-300 whitespace-pre-line line-clamp-3 leading-relaxed">
+          {text}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30 transition-all"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>WhatsApp এ পাঠান</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+
+        {phone && (
+          <a
+            href={`sms:${phone}?body=${encodeURIComponent(text)}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-850 hover:bg-stone-750 text-stone-200 text-xs font-semibold transition-colors border border-stone-700"
+          >
+            <Phone className="w-3 h-3 text-stone-400" />
+            <span>SMS এ</span>
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const GitHubRepoCard: React.FC<{
+  href: string;
+  title: React.ReactNode;
+}> = ({ href, title }) => {
+  const [copied, setCopied] = useState(false);
+  const miniBrowser = useMiniBrowser();
+
+  const isSheikhFarid = href.includes('rsk934128-dot');
+  let repoName = 'GitHub প্রজেক্ট';
+  try {
+    const url = new URL(href);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      repoName = parts[1];
+    } else if (parts.length === 1) {
+      repoName = parts[0];
+    }
+  } catch (_) {}
+
+  const cloneCmd = `git clone ${href}.git`;
+
+  const handleCopyClone = () => {
+    navigator.clipboard.writeText(cloneCmd);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="my-3.5 p-4 rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-950/40 via-stone-900 to-stone-950 text-stone-100 shadow-xl space-y-3">
+      <div className="flex items-center justify-between gap-3 border-b border-stone-800 pb-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/30">
+            <FolderGit2 className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono text-[10px] font-bold">
+                {isSheikhFarid ? 'শেখ ফরিদ অফিসিয়াল GitHub' : 'GitHub Repository'}
+              </span>
+              <span className="text-[11px] text-stone-400 font-mono">rsk934128-dot</span>
+            </div>
+            <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+              {repoName}
+            </h4>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCopyClone}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-stone-850 hover:bg-stone-750 text-stone-300 text-[11px] font-mono transition-colors cursor-pointer shrink-0"
+          title="Git Clone লিঙ্ক কপি করুন"
+        >
+          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          <span>{copied ? 'কপি হয়েছে' : 'Clone'}</span>
+        </button>
+      </div>
+
+      <p className="text-xs text-stone-300 line-clamp-2">
+        {typeof title === 'string' && title !== href ? title : 'শেখ ফরিদের অফিসিয়াল GitHub প্রজেক্ট ও ওপেন সোর্স কোড।'}
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/30 transition-all"
+        >
+          <FolderGit2 className="w-3.5 h-3.5" />
+          <span>GitHub এ ওপেন করুন</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+
+        <button
+          type="button"
+          onClick={() => miniBrowser.openBrowser(href, 'web')}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-850 hover:bg-stone-750 text-stone-200 text-xs font-semibold transition-colors border border-stone-700 cursor-pointer"
+        >
+          <Globe className="w-3.5 h-3.5 text-blue-400" />
+          <span>মিনি ব্রাউজারে পড়ুন</span>
+        </button>
       </div>
     </div>
   );
@@ -962,6 +1244,70 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
       if (isYoutube && videoId) {
         return <YouTubeEmbedCard href={href} videoId={videoId} title={children} />;
+      }
+
+      // 3. Check if it's a Gmail compose or mailto link
+      if (href.includes('mail.google.com') || href.startsWith('mailto:')) {
+        return <GmailActionCard href={href} title={children} />;
+      }
+
+      // 4. Check if it's a WhatsApp messaging link
+      if (href.includes('api.whatsapp.com/send') || href.includes('wa.me/')) {
+        return <WhatsAppActionCard href={href} title={children} />;
+      }
+
+      // 5. Check if it's an SMS link
+      if (href.startsWith('sms:')) {
+        let phone = '';
+        try {
+          const match = href.match(/^sms:([^?]*)/);
+          if (match) phone = match[1];
+        } catch (_) {}
+        return (
+          <a
+            href={href}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-bold text-xs shadow-md transition-all"
+          >
+            <Phone className="w-3.5 h-3.5" />
+            <span>{phone ? `${phone} এ SMS পাঠান` : 'সরাসরি ফোনে SMS পাঠান'}</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        );
+      }
+
+      // 6. Check if it's a telephone call link
+      if (href.startsWith('tel:')) {
+        const phone = href.replace(/^tel:/, '');
+        return (
+          <a
+            href={href}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs shadow-md transition-all"
+          >
+            <Phone className="w-3.5 h-3.5" />
+            <span>সরাসরি কল করুন ({phone})</span>
+          </a>
+        );
+      }
+
+      // 7. Check if it's a Telegram message link
+      if (href.includes('t.me')) {
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-md transition-all"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Telegram এ মেসেজ পাঠান</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        );
+      }
+
+      // 8. Check if it's a GitHub repository or profile link (especially rsk934128-dot)
+      if (href.includes('github.com')) {
+        return <GitHubRepoCard href={href} title={children} />;
       }
 
       return (

@@ -2,6 +2,33 @@ import { QuickPrompt } from '../types';
 
 export const QUICK_PROMPTS: QuickPrompt[] = [
   {
+    id: 'p-apps-connect-all',
+    category: 'daily',
+    titleBn: 'সকল অ্যাপস ওপেন ও কানেক্ট',
+    titleEn: 'Open All Apps & Connect',
+    prompt: 'আমাদের সকল প্রয়োজনীয় অ্যাপসগুলো (Gmail, GitHub, WhatsApp, Google Drive, YouTube, Google Maps, Facebook, Telegram) ওপেন ও কানেক্ট করার সরাসরি লিংক দাও এবং কীভাবে দ্রুত যোগাযোগ করা যায় বুঝিয়ে দাও।',
+    descriptionBn: 'সকল জনপ্রিয় অ্যাপস ওপেন ও সরাসরি সংযোগ',
+    icon: 'Globe',
+  },
+  {
+    id: 'p-send-gmail-message',
+    category: 'writing',
+    titleBn: 'জিমেইল ও মেসেজ পাঠানো',
+    titleEn: 'Send Gmail & Messages',
+    prompt: 'আমাকে একটি ক্লায়েন্ট প্রজেক্ট কোলাবোরেশনের জন্য সুন্দর অফিশিয়াল জিমেইল ড্রাফট এবং সাথে সাথে WhatsApp ও SMS এ সংক্ষেপে পাঠানোর মতো মেসেজ লিখে দাও, যেন আমি ১-ক্লিকেই পাঠিয়ে দিতে পারি।',
+    descriptionBn: '১-ক্লিকে জিমেইল ও WhatsApp এ বার্তা পাঠানো',
+    icon: 'Mail',
+  },
+  {
+    id: 'p-github-sheikh-farid',
+    category: 'coding',
+    titleBn: 'GitHub রিপোজিটরি ও কোডিং',
+    titleEn: 'GitHub Repositories (rsk934128-dot)',
+    prompt: 'শেখ ফরিদের অফিসিয়াল GitHub প্রোফাইল (https://github.com/rsk934128-dot) এর টপ ফ্ল্যাগশিপ রিপোজিটরিগুলোর তালিকা দাও, ক্লোন করার কমান্ড দেখাও এবং একটি ফুল-স্ট্যাক প্রজেক্ট তৈরিতে কীভাবে সাহায্য করবে তা জানাও।',
+    descriptionBn: 'শেখ ফরিদের ১৩৯+ রিপোজিটরি ও কোডিং সহায়তা',
+    icon: 'FolderGit2',
+  },
+  {
     id: 'p-identity-intro',
     category: 'daily',
     titleBn: 'আমাদের পরিচয় ও প্ল্যাটফর্ম',

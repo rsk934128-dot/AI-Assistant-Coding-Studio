@@ -17,7 +17,8 @@ import {
   Download,
   Share2,
   Pin,
-  PinOff
+  PinOff,
+  Globe
 } from 'lucide-react';
 import { ChatMessage, ChatSession, AssistantMode } from './types';
 import { QUICK_PROMPTS } from './data/prompts';
@@ -45,6 +46,7 @@ import { GoogleDriveModal } from './components/GoogleDriveModal';
 import { TTSSettingsModal } from './components/TTSSettingsModal';
 import { FounderProfileModal } from './components/FounderProfileModal';
 import { LandingPageVideoShowcase } from './components/LandingPageVideoShowcase';
+import { UniversalAppsConnectModal, UniversalTab } from './components/UniversalAppsConnectModal';
 import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
 import workspaceHeroImg from './assets/images/ai_workspace_hero_1790066671032.jpg';
@@ -108,6 +110,21 @@ export default function App() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [ttsSettingsModalOpen, setTtsSettingsModalOpen] = useState(false);
   const [founderProfileModalOpen, setFounderProfileModalOpen] = useState(false);
+  const [universalAppsModalConfig, setUniversalAppsModalConfig] = useState<{
+    isOpen: boolean;
+    tab: UniversalTab;
+  }>({
+    isOpen: false,
+    tab: 'apps',
+  });
+
+  const handleOpenUniversalApps = (tab: UniversalTab = 'apps') => {
+    setUniversalAppsModalConfig({
+      isOpen: true,
+      tab,
+    });
+  };
+
   const locationState = useLiveLocation();
   const [sessionToExport, setSessionToExport] = useState<ChatSession | null>(null);
 
@@ -826,6 +843,7 @@ export default function App() {
         onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
         onOpenCitizenServices={() => setCitizenModalOpen(true)}
         onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
+        onOpenUniversalApps={handleOpenUniversalApps}
         onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
         onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
         onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
@@ -842,6 +860,7 @@ export default function App() {
           onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
           onOpenCitizenServices={() => setCitizenModalOpen(true)}
           onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
+          onOpenUniversalApps={handleOpenUniversalApps}
           onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
           onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
           onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
@@ -884,6 +903,16 @@ export default function App() {
 
                 {/* Hero Quick Share & Action Buttons */}
                 <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                  <button
+                    id="hero-universal-apps-btn"
+                    onClick={() => handleOpenUniversalApps('apps')}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+                    title="সকল অ্যাপস ওপেন, জিমেইল, মেসেজিং ও GitHub কানেক্টর হাব"
+                  >
+                    <Globe className="w-4 h-4 text-blue-200 group-hover:scale-110 transition-transform" />
+                    <span>সকল অ্যাপস, জিমেইল ও কানেক্ট হাব</span>
+                  </button>
+
                   <button
                     id="hero-freelance-agent-btn"
                     onClick={() => setFreelanceAgentModalOpen(true)}
@@ -1317,6 +1346,15 @@ export default function App() {
       <FounderProfileModal
         isOpen={founderProfileModalOpen}
         onClose={() => setFounderProfileModalOpen(false)}
+      />
+
+      {/* Universal Apps Launcher, Gmail & Messaging Hub Modal */}
+      <UniversalAppsConnectModal
+        isOpen={universalAppsModalConfig.isOpen}
+        onClose={() => setUniversalAppsModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        initialTab={universalAppsModalConfig.tab}
+        onSendToChat={(prompt) => handleSendMessage(prompt)}
+        onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
       />
 
       {/* PWA Offline Indicator */}

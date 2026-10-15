@@ -29,7 +29,10 @@ import {
   Gauge,
   Crown,
   Pin,
-  PinOff
+  PinOff,
+  Mail,
+  FolderGit2,
+  Users
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -37,6 +40,7 @@ import { AppLogo } from './AppLogo';
 import { useAuth } from '../context/AuthContext';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
+import { UniversalTab } from './UniversalAppsConnectModal';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -52,6 +56,7 @@ interface SidebarProps {
   onOpenHostingDiagnostic?: () => void;
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
+  onOpenUniversalApps?: (tab?: UniversalTab) => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
   onOpenFounderProfile?: () => void;
@@ -74,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenHostingDiagnostic,
   onOpenCitizenServices,
   onOpenFreelanceAgent,
+  onOpenUniversalApps,
   onOpenGoogleDrive,
   onOpenTTSSettings,
   onOpenFounderProfile,
@@ -307,6 +313,92 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>⚡ এআই প্রোগ্রাম ও টুলকিট</span>
                 </p>
                 <div className="space-y-1.5">
+                  {/* Universal Apps, Gmail & Messaging Hub */}
+                  {onOpenUniversalApps && (
+                    <button
+                      id="sidebar-prog-universal-apps"
+                      onClick={() => {
+                        onOpenUniversalApps('apps');
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-blue-500/15 via-indigo-500/10 to-transparent hover:from-blue-500/25 border border-blue-500/30 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Globe className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                              সকল অ্যাপস, জিমেইল ও মেসেজ
+                            </p>
+                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-blue-500 text-white uppercase">
+                              Hub
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-blue-700 dark:text-blue-400 truncate">
+                            Gmail, WhatsApp, SMS, Drive, Maps ওপেন
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* GitHub Flagship Hub (rsk934128-dot) */}
+                  {onOpenUniversalApps && (
+                    <button
+                      id="sidebar-prog-github-hub"
+                      onClick={() => {
+                        onOpenUniversalApps('github');
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-950/70 border border-purple-300/60 dark:border-purple-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <FolderGit2 className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-purple-950 dark:text-purple-200 truncate">
+                            GitHub হাব (rsk934128-dot)
+                          </p>
+                          <p className="text-[10px] text-purple-700/90 dark:text-purple-400/90 truncate">
+                            শেখ ফরিদের ১৩৯+ রিপোজিটরি ও কোডিং
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* People Connect & Networking Directory */}
+                  {onOpenUniversalApps && (
+                    <button
+                      id="sidebar-prog-people-hub"
+                      onClick={() => {
+                        onOpenUniversalApps('people');
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-50/90 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70 border border-indigo-300/60 dark:border-indigo-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-indigo-950 dark:text-indigo-200 truncate">
+                            মানুষের সাথে কানেক্ট ও কন্টাক্ট বুক
+                          </p>
+                          <p className="text-[10px] text-indigo-700/90 dark:text-indigo-400/90 truncate">
+                            ১-ক্লিক কল, WhatsApp, জিমেইল ও কন্টাক্টস
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
                   {/* Freelance Agent */}
                   {onOpenFreelanceAgent && (
                     <button

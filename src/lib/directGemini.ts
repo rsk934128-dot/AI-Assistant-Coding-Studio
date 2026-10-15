@@ -47,6 +47,51 @@ You excel in:
 3. Citizen Services, Directories & Everyday Task Assistance (জনসেবা, মোবাইল নাম্বার, ঠিকানা, পরিচয় নির্দেশিকা ও দৈনন্দিন কাজ সহজ করা).
 4. Finding working YouTube links and music.
 5. Learning & Conceptual Explanations.
+6. All Apps Open & Universal Connect (সকল অ্যাপস ওপেন ও কানেক্ট করা):
+   - You can connect to, launch, and provide direct action links for all major services:
+     * Gmail: https://mail.google.com (Inbox, Compose, Search)
+     * GitHub (Sheikh Farid's Official Profile): https://github.com/rsk934128-dot (139+ public repositories)
+     * WhatsApp: https://web.whatsapp.com and direct chat links
+     * Google Drive: In-app Workspace & https://drive.google.com
+     * YouTube: In-app Media Studio & https://youtube.com
+     * Google Maps: In-app GPS & https://maps.google.com
+     * Facebook & Messenger: https://www.facebook.com/rubelrubel.rubel.98 (Sheikh Farid's Facebook)
+     * Telegram, LinkedIn, Twitter/X
+   - When a user asks "ইউটিউব ওপেন করো", "গিটহাব ওপেন করো", "ড্রাইভ ওপেন করো", "জিমেইল ওপেন করো" — always provide direct, working Markdown action links with descriptive labels.
+
+7. Sending Instant Messages (মেসেজ পাঠানো - WhatsApp, SMS, Telegram):
+   - When the user asks to send a message (e.g. "মেসেজ পাঠাও", "হোয়াটসঅ্যাপে মেসেজ দাও", "কাউকে এসএমএস করো", "একটি বার্তা পাঠাও"):
+     * Write an appropriate, polite, well-structured message.
+     * Always provide 1-click interactive action links that pre-fill the message:
+       - WhatsApp: [WhatsApp এ সরাসরি মেসেজ পাঠান](https://api.whatsapp.com/send?phone=PHONE_NUMBER&text=ENCODED_MESSAGE) (if phone is unknown, omit phone parameter)
+       - Mobile SMS: [ফোনে সরাসরি SMS পাঠান](sms:PHONE_NUMBER?body=ENCODED_MESSAGE)
+       - Telegram: [Telegram এ মেসেজ পাঠান](https://t.me/share/url?url=&text=ENCODED_MESSAGE)
+     * Our chat interface automatically renders these into interactive Message Action Cards with copy and direct send buttons!
+
+8. Sending Gmail & Professional Emails (জিমেইল ও অফিশিয়াল ইমেইল পাঠানো):
+   - When the user asks to send an email or Gmail (e.g. "জিমেইল পাঠাও", "একটি ইমেইল লিখে পাঠিয়ে দাও", "কাউকে অফিশিয়াল দরখাস্ত বা কোলাবোরেশন মেইল করো"):
+     * Draft a complete professional email with:
+       - প্রাপকের ইমেইল (To)
+       - বিষয় (Subject)
+       - বিস্তারিত মার্জিত মূল বক্তব্য (Body)
+     * Always provide a 1-click direct Gmail Web Compose link:
+       [Gmail এ সরাসরি খুলুন ও পাঠান](https://mail.google.com/mail/?view=cm&fs=1&to=RECIPIENT_EMAIL&su=ENCODED_SUBJECT&body=ENCODED_BODY)
+     * Also provide a standard mailto link:
+       [ডিফল্ট ইমেইল অ্যাপে পাঠান](mailto:RECIPIENT_EMAIL?subject=ENCODED_SUBJECT&body=ENCODED_BODY)
+
+9. Connecting with People & Professional Networking (মানুষের সাথে কানেক্ট করা):
+   - Help users find official contact channels, write introductory networking messages, compose outreach pitches, and maintain personal or team contact books.
+   - For reaching founder Sheikh Farid: Email: sheikhfaridvisa164@gmail.com, GitHub: https://github.com/rsk934128-dot, Location: Sirajganj, Bangladesh.
+   - For emergency or citizen assistance: 999 (National Emergency), 333 (Govt Information), 109 (Women & Child), 16122 (Land Services).
+
+10. Doing Real Work & Full-Stack Problem Solving (কাজ করা):
+   - You produce complete, runnable code (TypeScript, Python, React, Node.js, Shell, SQL).
+   - You provide comprehensive architectures, documentation, automated bug fixes, and step-by-step reasoning.
+
+11. Sheikh Farid's Official GitHub Profile & Repos (https://github.com/rsk934128-dot):
+   - Founder & Software Architect Sheikh Farid (RubelPay, Sirajganj, Bangladesh). 139+ public repositories.
+   - Flagship projects: DeepMind-Science-Discovery-Workbench, Sheikh-Farid-AI-Studio-, Sheikh-Farid-AI-Studio-Project-Hub, Stripe-Gmail-Payment-Gateway-Hub, AI-Assistant-Coding-Studio, PayHub-Gateway-Gmail-Disbursement-PWA, No-IP-DNS-Remote-Access.
+   - Provide git clone commands (\`git clone https://github.com/rsk934128-dot/REPO.git\`) and coding assistance.
 When the user asks in Bengali, respond naturally, warmly, and accurately in standard Bengali (বাংলা). Format code cleanly with markdown code blocks.`;
 
 const CITIZEN_SYSTEM_INSTRUCTION = `\nMode: Citizen & Everyday Life Assistant (জনসেবা, মোবাইল নাম্বার, ঠিকানা ও পরিচয় নির্দেশিকা):
@@ -118,96 +163,136 @@ export async function callDirectGeminiStream(options: DirectGeminiStreamOptions)
     ];
   }
 
-  // Model selection: gemini-3.8-flash is the primary active model with fallback support
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  // Models to try with multi-family fallback support
+  const modelsToTry = [
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
+    'gemini-4-argon',
+  ];
   let lastError: any = null;
+  let currentPayload = { ...payload };
+  let isQuotaExhaustedAll = false;
 
   for (const model of modelsToTry) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+    // Up to 2 passes per model: Pass 1 with search (if requested), Pass 2 without search if quota/tool fails
+    for (let pass = 0; pass < 2; pass++) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal,
-      });
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(currentPayload),
+          signal,
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let parsedMsg = `HTTP Error ${response.status}`;
-        try {
-          const errJson = JSON.parse(errorText);
-          parsedMsg = errJson?.error?.message || parsedMsg;
-        } catch {
-          // ignore
+        if (!response.ok) {
+          const errorText = await response.text();
+          let parsedMsg = `HTTP Error ${response.status}`;
+          try {
+            const errJson = JSON.parse(errorText);
+            parsedMsg = errJson?.error?.message || parsedMsg;
+          } catch {
+            // ignore
+          }
+
+          const lowerMsg = parsedMsg.toLowerCase();
+          const isQuota =
+            response.status === 429 ||
+            lowerMsg.includes('quota') ||
+            lowerMsg.includes('resource_exhausted') ||
+            lowerMsg.includes('rate limit') ||
+            lowerMsg.includes('exceeded your current quota');
+
+          if (lowerMsg.includes('api_key_invalid') || lowerMsg.includes('api key not valid')) {
+            throw new Error('প্রদত্ত Gemini API Key সঠিক নয় বা সক্রিয় করা নেই। অনুগ্রহ করে আপনার API Key পরীক্ষা করুন।');
+          }
+
+          if (isQuota) {
+            isQuotaExhaustedAll = true;
+            // If search tool was enabled, immediately strip tools and retry without search on this model
+            if (currentPayload.tools && currentPayload.tools.length > 0) {
+              const { tools, ...noToolsPayload } = currentPayload;
+              currentPayload = noToolsPayload;
+              await new Promise((r) => setTimeout(r, 600));
+              continue; // Pass 2 retry without search tool
+            }
+
+            // Brief delay for burst per-minute rate limit before trying next fallback model
+            await new Promise((r) => setTimeout(r, 1000));
+            lastError = new Error(
+              'এআই কোটা সীমা (API Rate Limit 429) সাময়িকভাবে শেষ হয়েছে। বিনামূল্যে থাকা অ্যাকাউন্টের প্রতি মিনিটের রিকোয়েস্ট সীমা শেষ হলে এমন হতে পারে। অনুগ্রহ করে ১০-১৫ সেকেন্ড অপেক্ষা করে নিচের "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন অথবা Google Search অফ করে মেসেজ পাঠান।'
+            );
+            break; // go to next model
+          }
+
+          // If 503 high demand or temporary 404, retry next model
+          lastError = new Error(`Gemini Direct API ত্রুটি: ${parsedMsg}`);
+          break;
         }
 
-        if (parsedMsg.includes('API_KEY_INVALID') || parsedMsg.includes('API key not valid')) {
-          throw new Error('প্রদত্ত Gemini API Key সঠিক নয়। অনুগ্রহ করে সঠিক চাবি পরীক্ষা করুন।');
-        }
-        if (parsedMsg.includes('Quota exceeded') || parsedMsg.includes('RESOURCE_EXHAUSTED')) {
-          throw new Error('এআই কোটা সীমা (Rate Limit 429) সাময়িকভাবে শেষ হয়েছে। কয়েক সেকেন্ড পর চেষ্টা করুন।');
+        if (!response.body) {
+          throw new Error('ReadableStream not supported on this device.');
         }
 
-        // If the model is not available or search failed, retry next model
-        lastError = new Error(`Gemini Direct API ত্রুটি: ${parsedMsg}`);
-        continue;
-      }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let accumulatedText = '';
 
-      if (!response.body) {
-        throw new Error('ReadableStream not supported on this device.');
-      }
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let accumulatedText = '';
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const candidate = parsed.candidates?.[0];
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6).trim();
-            if (!jsonStr) continue;
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const candidate = parsed.candidates?.[0];
-              
-              if (candidate?.content?.parts?.[0]?.text) {
-                const piece = candidate.content.parts[0].text;
-                accumulatedText += piece;
-                onChunk(piece);
-              }
-
-              // Grounding Metadata
-              if (candidate?.groundingMetadata) {
-                onGrounding?.(candidate.groundingMetadata);
-                if (candidate.groundingMetadata.webSearchQueries) {
-                  onSearchQueries?.(candidate.groundingMetadata.webSearchQueries);
+                if (candidate?.content?.parts?.[0]?.text) {
+                  const piece = candidate.content.parts[0].text;
+                  accumulatedText += piece;
+                  onChunk(piece);
                 }
+
+                // Grounding Metadata
+                if (candidate?.groundingMetadata) {
+                  onGrounding?.(candidate.groundingMetadata);
+                  if (candidate.groundingMetadata.webSearchQueries) {
+                    onSearchQueries?.(candidate.groundingMetadata.webSearchQueries);
+                  }
+                }
+              } catch {
+                // ignore chunk parse issues
               }
-            } catch {
-              // ignore chunk parse issues
             }
           }
         }
-      }
 
-      return accumulatedText;
-    } catch (err: any) {
-      if (err.name === 'AbortError' || signal?.aborted) {
-        throw err;
+        return accumulatedText;
+      } catch (err: any) {
+        if (err.name === 'AbortError' || signal?.aborted) {
+          throw err;
+        }
+        lastError = err;
+        break;
       }
-      lastError = err;
     }
+  }
+
+  if (isQuotaExhaustedAll) {
+    throw new Error(
+      'এআই কোটা সীমা (Rate Limit / Quota Exceeded 429) সাময়িকভাবে শেষ হয়েছে। Google Gemini ফ্রি টায়ারের প্রতি মিনিটের রিকোয়েস্ট সীমা অতিক্রম করলে এই বার্তা আসে। অনুগ্রহ করে ১০-১৫ সেকেন্ড অপেক্ষা করে নিচের "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন অথবা Google Search গ্রাউন্ডিং অফ করে মেসেজ পাঠান।'
+    );
   }
 
   throw lastError || new Error('সকল এআই মডেল সংযোগ ব্যর্থ হয়েছে।');

@@ -37,6 +37,7 @@ import { AppLogo } from './AppLogo';
 import { UserAuthButton } from './UserAuthButton';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
+import { UniversalTab } from './UniversalAppsConnectModal';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -44,6 +45,7 @@ interface HeaderProps {
   onOpenHostingDiagnostic?: () => void;
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
+  onOpenUniversalApps?: (tab?: UniversalTab) => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
   onOpenFounderProfile?: () => void;
@@ -70,6 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHostingDiagnostic,
   onOpenCitizenServices,
   onOpenFreelanceAgent,
+  onOpenUniversalApps,
   onOpenGoogleDrive,
   onOpenTTSSettings,
   onOpenFounderProfile,
@@ -300,6 +303,19 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Header Actions */}
       <div className="flex items-center gap-1.5">
+        {onOpenUniversalApps && (
+          <button
+            id="open-universal-apps-btn"
+            onClick={() => onOpenUniversalApps('apps')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 dark:from-blue-950/60 dark:to-indigo-950/60 dark:hover:from-blue-900/60 dark:hover:to-indigo-900/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors shadow-xs cursor-pointer"
+            title="সকল অ্যাপস ওপেন, জিমেইল, মেসেজিং ও GitHub কানেক্টর হাব"
+          >
+            <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="hidden md:inline">সকল অ্যাপস ও কানেক্ট</span>
+            <span className="md:hidden hidden sm:inline">অ্যাপস</span>
+          </button>
+        )}
+
         {onOpenFreelanceAgent && (
           <button
             id="open-freelance-agent-btn"
