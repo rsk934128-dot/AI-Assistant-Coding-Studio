@@ -32,7 +32,8 @@ import {
   PinOff,
   Mail,
   FolderGit2,
-  Users
+  Users,
+  BarChart3
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -57,6 +58,7 @@ interface SidebarProps {
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
   onOpenUniversalApps?: (tab?: UniversalTab) => void;
+  onOpenMetrics?: () => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
   onOpenFounderProfile?: () => void;
@@ -80,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCitizenServices,
   onOpenFreelanceAgent,
   onOpenUniversalApps,
+  onOpenMetrics,
   onOpenGoogleDrive,
   onOpenTTSSettings,
   onOpenFounderProfile,
@@ -480,6 +483,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Recharts Data Visualization & Metrics Dashboard */}
+                  {onOpenMetrics && (
+                    <button
+                      id="sidebar-prog-metrics"
+                      onClick={() => {
+                        onOpenMetrics();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-50/90 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70 border border-indigo-200/80 dark:border-indigo-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <BarChart3 className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                              মেট্রিক্স ও অ্যানালিটিক্স
+                            </p>
+                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-indigo-500 text-white uppercase">
+                              Charts
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-indigo-700/90 dark:text-indigo-400/90 truncate">
+                            চ্যাট গ্রাফ, গিটহাব ও পারফরম্যান্স ডেটা
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   )}
 

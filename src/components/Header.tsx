@@ -29,7 +29,8 @@ import {
   Crown,
   UserCheck,
   Pin,
-  PinOff
+  PinOff,
+  BarChart3
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -46,6 +47,7 @@ interface HeaderProps {
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
   onOpenUniversalApps?: (tab?: UniversalTab) => void;
+  onOpenMetrics?: () => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
   onOpenFounderProfile?: () => void;
@@ -73,6 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCitizenServices,
   onOpenFreelanceAgent,
   onOpenUniversalApps,
+  onOpenMetrics,
   onOpenGoogleDrive,
   onOpenTTSSettings,
   onOpenFounderProfile,
@@ -313,6 +316,19 @@ export const Header: React.FC<HeaderProps> = ({
             <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span className="hidden md:inline">সকল অ্যাপস ও কানেক্ট</span>
             <span className="md:hidden hidden sm:inline">অ্যাপস</span>
+          </button>
+        )}
+
+        {onOpenMetrics && (
+          <button
+            id="open-metrics-btn"
+            onClick={onOpenMetrics}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-colors shadow-xs cursor-pointer"
+            title="Recharts চালিত চ্যাট ও প্রজেক্ট মেট্রিক্স অ্যানালিটিক্স ড্যাশবোর্ড"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden md:inline">মেট্রিক্স ও গ্রাফ</span>
+            <span className="md:hidden hidden sm:inline">মেট্রিক্স</span>
           </button>
         )}
 

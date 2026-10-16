@@ -29,6 +29,15 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
     icon: 'FolderGit2',
   },
   {
+    id: 'p-project-metrics',
+    category: 'research',
+    titleBn: 'প্রজেক্ট মেট্রিক্স ও অ্যানালিটিক্স',
+    titleEn: 'Project Metrics & Analytics',
+    prompt: 'আমাদের বর্তমান এআই চ্যাট সেশনগুলোর ব্যবহারের পরিসংখ্যান, মোট বার্তা ও টোকেন ভলিউম, এবং শেখ ফরিদের GitHub প্রজেক্টগুলোর বিস্তারিত অ্যানালিটিক্স রিপোর্ট প্রদান করো।',
+    descriptionBn: 'Recharts অ্যানালিটিক্স ও ব্যবহার গ্রাফ',
+    icon: 'BarChart3',
+  },
+  {
     id: 'p-identity-intro',
     category: 'daily',
     titleBn: 'আমাদের পরিচয় ও প্ল্যাটফর্ম',

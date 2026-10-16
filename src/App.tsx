@@ -18,8 +18,10 @@ import {
   Share2,
   Pin,
   PinOff,
-  Globe
+  Globe,
+  BarChart3
 } from 'lucide-react';
+import { ProjectMetricsModal } from './components/ProjectMetricsModal';
 import { ChatMessage, ChatSession, AssistantMode } from './types';
 import { QUICK_PROMPTS } from './data/prompts';
 import { Header } from './components/Header';
@@ -110,6 +112,7 @@ export default function App() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [ttsSettingsModalOpen, setTtsSettingsModalOpen] = useState(false);
   const [founderProfileModalOpen, setFounderProfileModalOpen] = useState(false);
+  const [metricsModalOpen, setMetricsModalOpen] = useState(false);
   const [universalAppsModalConfig, setUniversalAppsModalConfig] = useState<{
     isOpen: boolean;
     tab: UniversalTab;
@@ -844,6 +847,7 @@ export default function App() {
         onOpenCitizenServices={() => setCitizenModalOpen(true)}
         onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
         onOpenUniversalApps={handleOpenUniversalApps}
+        onOpenMetrics={() => setMetricsModalOpen(true)}
         onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
         onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
         onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
@@ -861,6 +865,7 @@ export default function App() {
           onOpenCitizenServices={() => setCitizenModalOpen(true)}
           onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
           onOpenUniversalApps={handleOpenUniversalApps}
+          onOpenMetrics={() => setMetricsModalOpen(true)}
           onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
           onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
           onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
@@ -911,6 +916,16 @@ export default function App() {
                   >
                     <Globe className="w-4 h-4 text-blue-200 group-hover:scale-110 transition-transform" />
                     <span>সকল অ্যাপস, জিমেইল ও কানেক্ট হাব</span>
+                  </button>
+
+                  <button
+                    id="hero-metrics-btn"
+                    onClick={() => setMetricsModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:brightness-110 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+                    title="Recharts চালিত চ্যাট ও প্রজেক্ট মেট্রিক্স অ্যানালিটিক্স ড্যাশবোর্ড"
+                  >
+                    <BarChart3 className="w-4 h-4 text-purple-200 group-hover:scale-110 transition-transform" />
+                    <span>মেট্রিক্স ও অ্যানালিটিক্স (Charts)</span>
                   </button>
 
                   <button
@@ -1355,6 +1370,15 @@ export default function App() {
         initialTab={universalAppsModalConfig.tab}
         onSendToChat={(prompt) => handleSendMessage(prompt)}
         onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
+      />
+
+      {/* Recharts Project Metrics & Chat History Analytics Modal */}
+      <ProjectMetricsModal
+        isOpen={metricsModalOpen}
+        onClose={() => setMetricsModalOpen(false)}
+        sessions={sessions}
+        activeSessionId={activeSession?.id}
+        onSelectSession={setActiveSessionId}
       />
 
       {/* PWA Offline Indicator */}
