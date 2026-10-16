@@ -25,11 +25,14 @@ import {
   CheckCircle2,
   ArrowUpRight,
   ShieldCheck,
-  Share2
+  Share2,
+  Terminal,
+  Network,
+  AlertCircle
 } from 'lucide-react';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 
-export type UniversalTab = 'apps' | 'gmail' | 'message' | 'github' | 'people';
+export type UniversalTab = 'apps' | 'gmail' | 'message' | 'github' | 'people' | 'ddns';
 
 interface UniversalAppsConnectModalProps {
   isOpen: boolean;
@@ -200,6 +203,59 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
     github: '',
     category: 'developer',
   });
+
+  // No-IP Dynamic DNS State
+  const [ddnsHostname, setDdnsHostname] = useState('office.ddns.net');
+  const [ddnsUsername, setDdnsUsername] = useState('sheikhfarid164@gmail.com');
+  const [ddnsPassword, setDdnsPassword] = useState('Rubel007*#@');
+  const [ddnsIp, setDdnsIp] = useState('203.38.213.22');
+  const [isUpdatingDdns, setIsUpdatingDdns] = useState(false);
+  const [isDetectingIp, setIsDetectingIp] = useState(false);
+  const [ddnsResponse, setDdnsResponse] = useState<any>(null);
+
+  const handleDetectMyIp = async () => {
+    setIsDetectingIp(true);
+    try {
+      const res = await fetch('/api/ddns/my-ip');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ip) setDdnsIp(data.ip);
+      }
+    } catch (e) {
+      console.warn('IP detect error:', e);
+    } finally {
+      setIsDetectingIp(false);
+    }
+  };
+
+  const handleUpdateDdns = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingDdns(true);
+    setDdnsResponse(null);
+    try {
+      const res = await fetch('/api/ddns/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostname: ddnsHostname,
+          username: ddnsUsername,
+          password: ddnsPassword,
+          myip: ddnsIp,
+        }),
+      });
+      const data = await res.json();
+      setDdnsResponse(data);
+    } catch (err: any) {
+      setDdnsResponse({
+        success: false,
+        code: 'error',
+        messageBn: 'সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি।',
+        messageEn: err?.message || 'Network error',
+      });
+    } finally {
+      setIsUpdatingDdns(false);
+    }
+  };
 
   useEffect(() => {
     if (initialTab) {
@@ -436,6 +492,19 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
           >
             <Users className="w-3.5 h-3.5" />
             <span>মানুষের সাথে কানেক্ট করুন</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('ddns')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeTab === 'ddns'
+                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-850'
+            }`}
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>No-IP DDNS আপডেট</span>
           </button>
         </div>
 
@@ -1278,6 +1347,189 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
             </div>
           )}
 
+          {/* TAB 6: NO-IP DYNAMIC DNS AUTOMATION & DIAGNOSTIC */}
+          {activeTab === 'ddns' && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-stone-900 to-stone-900 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-amber-400" />
+                    <span>No-IP Dynamic DNS (DDNS) কন্ট্রোল ও ডায়াগনস্টিক</span>
+                  </h3>
+                  <p className="text-xs text-stone-300 mt-0.5">
+                    রিমোট সার্ভার, রাউটার ও লোকাল হোস্টিংয়ের জন্য No-IP হোস্টনেম আপডেট ও স্ট্যাটাস যাচাই।
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://github.com/rsk934128-dot/No-IP-DNS-Remote-Access"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 text-xs font-semibold border border-purple-500/30 transition-colors"
+                  >
+                    <FolderGit2 className="w-3.5 h-3.5" />
+                    <span>No-IP Repo (rsk934128-dot)</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+
+              {/* DDNS Form */}
+              <form onSubmit={handleUpdateDdns} className="p-5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/70 dark:bg-stone-900/40 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      No-IP হোস্টনেম (Hostname):
+                    </label>
+                    <input
+                      type="text"
+                      value={ddnsHostname}
+                      onChange={(e) => setDdnsHostname(e.target.value)}
+                      placeholder="e.g. office.ddns.net"
+                      className="w-full px-3.5 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      টার্গেট পাবলিক IP (Target IP):
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={ddnsIp}
+                        onChange={(e) => setDdnsIp(e.target.value)}
+                        placeholder="e.g. 203.38.213.22"
+                        className="flex-1 px-3.5 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleDetectMyIp}
+                        disabled={isDetectingIp}
+                        className="px-3 py-2 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-semibold shrink-0 cursor-pointer transition-colors"
+                        title="বর্তমান ডিভাইসের পাবলিক IP সনাক্ত করুন"
+                      >
+                        {isDetectingIp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'আমার IP'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      No-IP ইউজারনেম / ইমেইল / DDNS Key:
+                    </label>
+                    <input
+                      type="text"
+                      value={ddnsUsername}
+                      onChange={(e) => setDdnsUsername(e.target.value)}
+                      placeholder="sheikhfarid164@gmail.com"
+                      className="w-full px-3.5 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      No-IP পাসওয়ার্ড / DDNS Key Secret:
+                    </label>
+                    <input
+                      type="password"
+                      value={ddnsPassword}
+                      onChange={(e) => setDdnsPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full px-3.5 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="submit"
+                    disabled={isUpdatingDdns}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:brightness-110 active:scale-98 text-white font-bold text-xs shadow-md shadow-amber-600/25 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isUpdatingDdns ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Network className="w-4 h-4" />
+                    )}
+                    <span>{isUpdatingDdns ? 'আপডেট হচ্ছে...' : 'Dynamic DNS রেকর্ড আপডেট করুন'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curlCmd = `curl -X GET -u "${ddnsUsername}:${ddnsPassword}" -H "User-Agent: PartnerGateway/3.2 developer@partner.com" "https://dynupdate.no-ip.com/nic/update?hostname=${ddnsHostname}&myip=${ddnsIp}"`;
+                      handleCopy(curlCmd, 'curl-noip');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    {copiedId === 'curl-noip' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>cURL কমান্ড কপি করুন</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Response Card if available */}
+              {ddnsResponse && (
+                <div
+                  className={`p-5 rounded-2xl border text-xs space-y-3 animate-in fade-in ${
+                    ddnsResponse.success
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/40 text-emerald-950 dark:text-emerald-200'
+                      : 'bg-amber-50 dark:bg-amber-950/40 border-amber-500/40 text-amber-950 dark:text-amber-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      {ddnsResponse.success ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                      )}
+                      <span>
+                        {ddnsResponse.success
+                          ? 'No-IP আপডেট সফল হয়েছে'
+                          : `No-IP রেসপন্স কোড: ${ddnsResponse.code || 'ত্রুটি'}`}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">
+                      RAW: {ddnsResponse.raw || ddnsResponse.code}
+                    </span>
+                  </div>
+
+                  <p className="font-medium text-xs leading-relaxed">
+                    {ddnsResponse.messageBn}
+                  </p>
+
+                  {ddnsResponse.instructions && ddnsResponse.instructions.length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-white/60 dark:bg-black/30 border border-amber-500/20 space-y-1.5 mt-2">
+                      <p className="font-bold text-[11px] text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                        সমাধান নির্দেশিকা (How to fix badauth):
+                      </p>
+                      <ul className="space-y-1 text-stone-700 dark:text-stone-300 text-[11px]">
+                        {ddnsResponse.instructions.map((ins: string, idx: number) => (
+                          <li key={idx}>{ins}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* cURL & Cron Reference Box */}
+              <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-900 text-stone-100 text-xs font-mono space-y-2">
+                <div className="flex items-center justify-between text-stone-400 text-[11px]">
+                  <span>অটোমেটেড লিনাক্স ক্রন জব (Crontab Auto-Update Script)</span>
+                  <span className="text-amber-400">প্রতি ৫ মিনিটে রান</span>
+                </div>
+                <div className="p-3 rounded-xl bg-black/60 border border-stone-800 text-[11px] text-amber-300 overflow-x-auto whitespace-pre">
+                  {`*/5 * * * * curl -s -X GET -u "${ddnsUsername}:${ddnsPassword}" -H "User-Agent: PartnerGateway/3.2 developer@partner.com" "https://dynupdate.no-ip.com/nic/update?hostname=${ddnsHostname}&myip=${ddnsIp}" > /dev/null 2>&1`}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

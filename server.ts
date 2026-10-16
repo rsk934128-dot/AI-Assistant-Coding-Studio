@@ -1654,6 +1654,140 @@ app.get('/api/github/repos', async (req, res) => {
   }
 });
 
+// No-IP Dynamic DNS (DDNS) Automation & Diagnostic API
+app.get('/api/ddns/my-ip', async (req, res) => {
+  try {
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    if (ipRes.ok) {
+      const data = await ipRes.json();
+      return res.json({ ip: data.ip });
+    }
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+    return res.json({ ip: clientIp });
+  } catch (err: any) {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+    return res.json({ ip: clientIp });
+  }
+});
+
+app.post('/api/ddns/update', async (req, res) => {
+  try {
+    const { hostname = 'office.ddns.net', username, password, myip } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        code: 'badauth',
+        error: 'No-IP username/email এবং password প্রয়োজন।'
+      });
+    }
+
+    const targetHostname = String(hostname).trim();
+    let targetIp = String(myip || '').trim();
+
+    // Auto-detect public IP if not provided
+    if (!targetIp) {
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        if (ipRes.ok) {
+          const data = await ipRes.json();
+          targetIp = data.ip;
+        }
+      } catch (_) {}
+    }
+
+    const authHeader = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
+    const updateUrl = targetIp
+      ? `https://dynupdate.no-ip.com/nic/update?hostname=${encodeURIComponent(targetHostname)}&myip=${encodeURIComponent(targetIp)}`
+      : `https://dynupdate.no-ip.com/nic/update?hostname=${encodeURIComponent(targetHostname)}`;
+
+    const noIpRes = await fetch(updateUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': authHeader,
+        'User-Agent': 'PartnerGateway/3.2 developer@partner.com',
+      },
+    });
+
+    const rawOutput = (await noIpRes.text()).trim();
+    const parts = rawOutput.split(/\s+/);
+    const code = parts[0]?.toLowerCase();
+    const resolvedIp = parts[1] || targetIp;
+
+    let success = false;
+    let messageBn = '';
+    let messageEn = '';
+    let instructions: string[] = [];
+
+    switch (code) {
+      case 'good':
+        success = true;
+        messageBn = `DNS রেকর্ড সফলভাবে আপডেট হয়েছে! বর্তমান IP: ${resolvedIp}`;
+        messageEn = `DNS record updated successfully! IP is now ${resolvedIp}`;
+        break;
+      case 'nochg':
+        success = true;
+        messageBn = `IP ইতিমধ্যেই আপডেট রয়েছে (${resolvedIp})। অতিরিক্ত পরিবর্তনের প্রয়োজন নেই।`;
+        messageEn = `IP is already identical (${resolvedIp}); no change needed.`;
+        break;
+      case 'badauth':
+        success = false;
+        messageBn = 'ইউজারনেম অথবা পাসওয়ার্ড সঠিক নয় (Invalid Credentials / badauth)।';
+        messageEn = 'Invalid username or password (badauth).';
+        instructions = [
+          '১. No-IP.com এ লগইন করুন (https://www.noip.com/login)।',
+          '২. Account -> "DDNS Keys" মেনু থেকে একটি নতুন DDNS Key তৈরি করুন।',
+          '৩. No-IP এখন মূল পাসওয়ার্ডের বদলে ডেডিকেটেড "DDNS Key" ইউজারনেম ও পাসওয়ার্ড ব্যবহার বাধ্যতামূলক করেছে।',
+          '৪. আপনার ইমেইল (sheikhfarid164@gmail.com বা sheikhfaridvisa164@gmail.com) সঠিক কিনা পরীক্ষা করুন।'
+        ];
+        break;
+      case 'nohost':
+        success = false;
+        messageBn = `প্রদত্ত হোস্টনেম (${targetHostname}) এই একাউন্টে খুঁজে পাওয়া যায়নি (nohost)।`;
+        messageEn = `Hostname (${targetHostname}) does not exist in this account (nohost).`;
+        instructions = [
+          '১. No-IP ড্যাশবোর্ডে গিয়ে "Dynamic DNS" -> "No-IP Hostnames" চেক করুন।',
+          '২. "office.ddns.net" হোস্টনেমটি আপনার একাউন্টে সক্রিয় আছে কিনা নিশ্চিত করুন।'
+        ];
+        break;
+      case 'abuse':
+        success = false;
+        messageBn = 'অ্যাকাউন্ট ব্লক বা সীমিত করা হয়েছে (abuse)। খুব ঘন ঘন আপডেট রিকোয়েস্ট পাঠানো যাবে না।';
+        messageEn = 'Username blocked due to abuse or rapid update calls.';
+        break;
+      case '911':
+        success = false;
+        messageBn = 'No-IP সার্ভারে সাময়িক বিপর্যয় দেখা দিয়েছে (911)। ৩০ মিনিট পর আবার চেষ্টা করুন।';
+        messageEn = 'A fatal server error occurred on No-IP side (911).';
+        break;
+      default:
+        success = false;
+        messageBn = `No-IP সার্ভার রেসপন্স: ${rawOutput}`;
+        messageEn = `Response from No-IP: ${rawOutput}`;
+        break;
+    }
+
+    return res.json({
+      success,
+      code,
+      raw: rawOutput,
+      messageBn,
+      messageEn,
+      hostname: targetHostname,
+      ip: resolvedIp,
+      instructions: instructions.length > 0 ? instructions : undefined,
+    });
+  } catch (err: any) {
+    console.error('No-IP DDNS endpoint error:', err);
+    return res.status(500).json({
+      success: false,
+      code: 'error',
+      error: err?.message || 'Failed to communicate with No-IP service'
+    });
+  }
+});
+
+
 // Global Express error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled route error in server:', err);
