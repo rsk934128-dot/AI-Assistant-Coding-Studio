@@ -28,7 +28,8 @@ import {
   Share2,
   Terminal,
   Network,
-  AlertCircle
+  AlertCircle,
+  Server
 } from 'lucide-react';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 
@@ -66,6 +67,16 @@ interface GitHubRepoItem {
 
 // Verified list of top flagship projects for rsk934128-dot (Sheikh Farid)
 const DEFAULT_SHEIKH_FARID_REPOS: GitHubRepoItem[] = [
+  {
+    id: 'repo-uae-dubai-visa',
+    name: 'UAE-Dubai-Visa-AI-Hub',
+    html_url: 'https://github.com/rsk934128-dot/UAE-Dubai-Visa-AI-Hub',
+    description: 'সংযুক্ত আরব আমিরাত (UAE) ও দুবাইয়ের ভিসা প্রসেসিং, ICP/GDRFA ট্র্যাকিং, ফাইন ক্যালকুলেটর ও এআই ভ্যালিডেটর গভটেক সলিউশন।',
+    language: 'TypeScript',
+    stargazers_count: 15,
+    forks_count: 4,
+    updated_at: '2026-10-17',
+  },
   {
     id: 1,
     name: 'DeepMind-Science-Discovery-Workbench',
@@ -765,6 +776,38 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
                       className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors text-center inline-flex items-center justify-center gap-1.5"
                     >
                       <span>ফেসবুকে কানেক্ট হন</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* 7. Google Cloud Run Live Production Host */}
+                <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-950/60 hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-4 group">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30">
+                        <Server className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Live 200 OK
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                      <span>Cloud Run প্রোডাকশন হোস্ট</span>
+                    </h4>
+                    <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+                      গুগল ক্লাউড রান (US-West1) সার্ভারলেস কন্টেইনারে লাইভ হোস্টকৃত ফুল-স্ট্যাক এক্সপ্রেস এপিআই ও অ্যাপ্লিকেশন।
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-stone-200 dark:border-stone-800">
+                    <a
+                      href="https://remix-ai-assistant-coding-studio-8642-922753271960.us-west1.run.app/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors text-center inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <span>ক্লাউড রান ওপেন করুন</span>
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>

@@ -90,7 +90,7 @@ You excel in:
 
 11. Sheikh Farid's Official GitHub Profile & Repos (https://github.com/rsk934128-dot):
    - Founder & Software Architect Sheikh Farid (RubelPay, Sirajganj, Bangladesh). 139+ public repositories.
-   - Flagship projects: DeepMind-Science-Discovery-Workbench, Sheikh-Farid-AI-Studio-, Sheikh-Farid-AI-Studio-Project-Hub, Stripe-Gmail-Payment-Gateway-Hub, AI-Assistant-Coding-Studio, PayHub-Gateway-Gmail-Disbursement-PWA, No-IP-DNS-Remote-Access.
+   - Flagship projects: UAE-Dubai-Visa-AI-Hub (UAE & Dubai Visa processing, ICP/GDRFA tracking & AI GovTech), DeepMind-Science-Discovery-Workbench, Sheikh-Farid-AI-Studio-, Sheikh-Farid-AI-Studio-Project-Hub, Stripe-Gmail-Payment-Gateway-Hub, AI-Assistant-Coding-Studio, PayHub-Gateway-Gmail-Disbursement-PWA, No-IP-DNS-Remote-Access.
    - Provide git clone commands (\`git clone https://github.com/rsk934128-dot/REPO.git\`) and coding assistance.
 When the user asks in Bengali, respond naturally, warmly, and accurately in standard Bengali (বাংলা). Format code cleanly with markdown code blocks.`;
 

@@ -19,9 +19,11 @@ import {
   Pin,
   PinOff,
   Globe,
-  BarChart3
+  BarChart3,
+  CreditCard
 } from 'lucide-react';
 import { ProjectMetricsModal } from './components/ProjectMetricsModal';
+import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { ChatMessage, ChatSession, AssistantMode } from './types';
 import { QUICK_PROMPTS } from './data/prompts';
 import { Header } from './components/Header';
@@ -113,6 +115,7 @@ export default function App() {
   const [ttsSettingsModalOpen, setTtsSettingsModalOpen] = useState(false);
   const [founderProfileModalOpen, setFounderProfileModalOpen] = useState(false);
   const [metricsModalOpen, setMetricsModalOpen] = useState(false);
+  const [paymentGatewayModalOpen, setPaymentGatewayModalOpen] = useState(false);
   const [universalAppsModalConfig, setUniversalAppsModalConfig] = useState<{
     isOpen: boolean;
     tab: UniversalTab;
@@ -848,6 +851,7 @@ export default function App() {
         onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
         onOpenUniversalApps={handleOpenUniversalApps}
         onOpenMetrics={() => setMetricsModalOpen(true)}
+        onOpenPaymentGateway={() => setPaymentGatewayModalOpen(true)}
         onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
         onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
         onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
@@ -866,6 +870,7 @@ export default function App() {
           onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
           onOpenUniversalApps={handleOpenUniversalApps}
           onOpenMetrics={() => setMetricsModalOpen(true)}
+          onOpenPaymentGateway={() => setPaymentGatewayModalOpen(true)}
           onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
           onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
           onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
@@ -926,6 +931,16 @@ export default function App() {
                   >
                     <BarChart3 className="w-4 h-4 text-purple-200 group-hover:scale-110 transition-transform" />
                     <span>মেট্রিক্স ও অ্যানালিটিক্স (Charts)</span>
+                  </button>
+
+                  <button
+                    id="hero-payment-gateway-btn"
+                    onClick={() => setPaymentGatewayModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:brightness-110 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+                    title="RubelPay, bKash, BohudurPay, Wise ও Stripe পেমেন্ট গেটওয়ে হাব"
+                  >
+                    <CreditCard className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition-transform" />
+                    <span>পেমেন্ট গেটওয়ে হাব (BohudurPay/bKash/Wise)</span>
                   </button>
 
                   <button
@@ -1379,6 +1394,13 @@ export default function App() {
         sessions={sessions}
         activeSessionId={activeSession?.id}
         onSelectSession={setActiveSessionId}
+      />
+
+      {/* Unified Payment Gateway Hub (RubelPay, bKash, BohudurPay, Stripe, Wise, SSLCommerz) */}
+      <PaymentGatewayModal
+        isOpen={paymentGatewayModalOpen}
+        onClose={() => setPaymentGatewayModalOpen(false)}
+        onSendToChat={(prompt) => handleSendMessage(prompt)}
       />
 
       {/* PWA Offline Indicator */}

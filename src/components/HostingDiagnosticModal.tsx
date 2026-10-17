@@ -553,6 +553,37 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
 
           {activeTab === 'cloudrun' && (
             <div className="space-y-4 text-xs leading-relaxed">
+              <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-stone-900 to-stone-900 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider font-mono">
+                      সক্রিয় লাইভ ক্লাউড রান ডিপ্লয়মেন্ট
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-mono font-bold">
+                      200 OK
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-300 font-mono break-all">
+                    https://remix-ai-assistant-coding-studio-8642-922753271960.us-west1.run.app/
+                  </p>
+                  <p className="text-[11px] text-stone-400">
+                    Express backend, Gemini 3.8 Flash, এবং Vite SPA ক্লাউড রানে সফলভাবে অনলাইন।
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href="https://remix-ai-assistant-coding-studio-8642-922753271960.us-west1.run.app/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors cursor-pointer"
+                  >
+                    <span>সাইটটি ভিজিট করুন</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+
               <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 text-blue-900 dark:text-blue-200 space-y-1">
                 <p className="font-bold">Google Cloud Run হোস্টিং সমাধান:</p>
                 <p>

@@ -53,3 +53,20 @@ export interface MusicTrack {
   originalUrl?: string;
   searchQuery?: string;
 }
+
+export type PaymentGatewayType = 'rubelpay' | 'bkash' | 'nagad' | 'stripe' | 'sslcommerz' | 'bohudurpay' | 'wise';
+
+export interface PaymentTransaction {
+  id: string;
+  gateway: PaymentGatewayType;
+  amount: number;
+  currency: 'BDT' | 'USD' | 'AED';
+  status: 'pending' | 'success' | 'failed';
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  transactionRef: string;
+  createdAt: number;
+  description: string;
+  disbursedViaGmail?: boolean;
+}

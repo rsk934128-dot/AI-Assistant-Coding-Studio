@@ -120,6 +120,7 @@ export const ProjectMetricsModal: React.FC<ProjectMetricsModalProps> = ({
   }, [isOpen, activeTab]);
 
   const getFallbackRepos = () => [
+    { name: 'UAE-Dubai-Visa-AI-Hub', language: 'TypeScript', stargazers_count: 15, forks_count: 4, description: 'UAE ও দুবাই ভিসা প্রসেসিং, ICP/GDRFA স্ট্যাটাস ট্র্যাকিং ও এআই গভটেক সলিউশন।' },
     { name: 'AI-Assistant-Coding-Studio', language: 'TypeScript', stargazers_count: 12, forks_count: 3 },
     { name: 'DeepMind-Science-Discovery-Workbench', language: 'TypeScript', stargazers_count: 5, forks_count: 1 },
     { name: 'Sheikh-Farid-AI-Studio-', language: 'TypeScript', stargazers_count: 8, forks_count: 2 },

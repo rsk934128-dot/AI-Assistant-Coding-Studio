@@ -29,6 +29,15 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
     icon: 'FolderGit2',
   },
   {
+    id: 'p-uae-dubai-visa-hub',
+    category: 'daily',
+    titleBn: 'UAE ও দুবাই ভিসা এআই হাব',
+    titleEn: 'UAE & Dubai Visa AI Hub',
+    prompt: 'শেখ ফরিদের অফিসিয়াল রিপোজিটরি UAE-Dubai-Visa-AI-Hub (https://github.com/rsk934128-dot/UAE-Dubai-Visa-AI-Hub) এর বিস্তারিত পরিচিতি দাও। দুবাই ভিসা (GDRFA) ও ইউএই ভিসা (ICP) স্ট্যাটাস ট্র্যাকিং, ভিসা ফাইন ক্যালকুলেটর এবং এআই এলিজিবিলিটি কীভাবে কাজ করে বুঝিয়ে বলো।',
+    descriptionBn: 'দুবাই ও ইউএই ভিসা ট্র্যাকিং ও এআই সমাধান',
+    icon: 'ShieldCheck',
+  },
+  {
     id: 'p-project-metrics',
     category: 'research',
     titleBn: 'প্রজেক্ট মেট্রিক্স ও অ্যানালিটিক্স',

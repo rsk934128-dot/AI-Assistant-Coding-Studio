@@ -590,6 +590,7 @@ You excel in:
    - The user/founder's official GitHub profile is: https://github.com/rsk934128-dot (Username: rsk934128-dot, Profile Name: SHEIKH FARID).
    - Organization/Company: RubelPay | Location: Sirajganj Sadar, Bangladesh.
    - Public Repositories (139+ repos):
+     * UAE-Dubai-Visa-AI-Hub: https://github.com/rsk934128-dot/UAE-Dubai-Visa-AI-Hub (UAE & Dubai Visa processing, ICP/GDRFA tracking, AI eligibility checker, fine calculator, pre-submission validator & GovTech travel solution)
      * DeepMind-Science-Discovery-Workbench: https://github.com/rsk934128-dot/DeepMind-Science-Discovery-Workbench (AI science discovery workbench)
      * Sheikh-Farid-AI-Studio-: https://github.com/rsk934128-dot/Sheikh-Farid-AI-Studio- (Full-stack AI assistant & coding studio)
      * Sheikh-Farid-AI-Studio-Project-Hub: https://github.com/rsk934128-dot/Sheikh-Farid-AI-Studio-Project-Hub (Ecosystem hub)

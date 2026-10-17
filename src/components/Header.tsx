@@ -30,7 +30,8 @@ import {
   UserCheck,
   Pin,
   PinOff,
-  BarChart3
+  BarChart3,
+  CreditCard
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -48,6 +49,7 @@ interface HeaderProps {
   onOpenFreelanceAgent?: () => void;
   onOpenUniversalApps?: (tab?: UniversalTab) => void;
   onOpenMetrics?: () => void;
+  onOpenPaymentGateway?: () => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
   onOpenFounderProfile?: () => void;
@@ -76,6 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenFreelanceAgent,
   onOpenUniversalApps,
   onOpenMetrics,
+  onOpenPaymentGateway,
   onOpenGoogleDrive,
   onOpenTTSSettings,
   onOpenFounderProfile,
@@ -329,6 +332,19 @@ export const Header: React.FC<HeaderProps> = ({
             <BarChart3 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
             <span className="hidden md:inline">মেট্রিক্স ও গ্রাফ</span>
             <span className="md:hidden hidden sm:inline">মেট্রিক্স</span>
+          </button>
+        )}
+
+        {onOpenPaymentGateway && (
+          <button
+            id="open-payment-gateway-btn"
+            onClick={onOpenPaymentGateway}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors shadow-xs cursor-pointer"
+            title="RubelPay, bKash, Nagad ও Stripe পেমেন্ট গেটওয়ে হাব"
+          >
+            <CreditCard className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden md:inline">পেমেন্ট গেটওয়ে</span>
+            <span className="md:hidden hidden sm:inline">পেমেন্ট</span>
           </button>
         )}
 

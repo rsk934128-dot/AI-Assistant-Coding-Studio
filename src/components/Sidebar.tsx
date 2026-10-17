@@ -33,7 +33,8 @@ import {
   Mail,
   FolderGit2,
   Users,
-  BarChart3
+  BarChart3,
+  CreditCard
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -59,6 +60,7 @@ interface SidebarProps {
   onOpenFreelanceAgent?: () => void;
   onOpenUniversalApps?: (tab?: UniversalTab) => void;
   onOpenMetrics?: () => void;
+  onOpenPaymentGateway?: () => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
   onOpenFounderProfile?: () => void;
@@ -83,6 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenFreelanceAgent,
   onOpenUniversalApps,
   onOpenMetrics,
+  onOpenPaymentGateway,
   onOpenGoogleDrive,
   onOpenTTSSettings,
   onOpenFounderProfile,
@@ -515,6 +518,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Unified Payment Gateway Hub (RubelPay, bKash, BohudurPay, Stripe, Wise) */}
+                  {onOpenPaymentGateway && (
+                    <button
+                      id="sidebar-prog-payment-gateway"
+                      onClick={() => {
+                        onOpenPaymentGateway();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/90 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-300/60 dark:border-emerald-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <CreditCard className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200 truncate">
+                              পেমেন্ট গেটওয়ে হাব
+                            </p>
+                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-600 text-white uppercase">
+                              Pay
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90 truncate">
+                            RubelPay, bKash, BohudurPay, Wise ও Stripe
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   )}
 
