@@ -50,8 +50,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: |
+          mkdir -p "$ANDROID_HOME/licenses" || true
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> "$ANDROID_HOME/licenses/android-sdk-license" || true
+          echo "d56f5187479edd15589fb1918b8719d14ea86638" >> "$ANDROID_HOME/licenses/android-sdk-license" || true
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> "$ANDROID_HOME/licenses/android-sdk-preview-license" || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>/dev/null || true
 
       - name: Install Dependencies
         run: |
@@ -61,7 +66,7 @@ jobs:
         run: |
           npm run build
 
-      - name: Initialize & Sync Capacitor Android
+      - name: Sync Capacitor Android
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
@@ -101,28 +106,37 @@ jobs:
           path: release-apks/*.apk
           retention-days: 30
 
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.release_version }}" ]; then
+            echo "tag=${{ github.event.inputs.release_version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create or Update GitHub Release with APK
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.release_version || github.ref_name }}
-          name: "AI Assistant & Coding Studio ${{ github.event.inputs.release_version || github.ref_name }} (Android APK)"
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: "AI Assistant & Coding Studio ${{ steps.release_tag.outputs.tag }} (Android APK)"
           draft: false
           prerelease: false
           generate_release_notes: true
           body: |
             ### 📱 Android APK Release Download
-            আমাদের এআই অ্যাসিস্ট্যান্ট অ্যান্ড কোডিং স্টুডিওর অফিসিয়াল অ্যান্ড্রয়েড এপিকে (Android APK) প্রস্তুত!
+            আমাদের এআই অ্যাসিস্ট্যান্ট অ্যান্ড কোডিং স্টুডিওর অফিসিয়াল অ্যান্ড্রয়েড এপিকে (Android APK) সফলভাবে বিল্ড হয়েছে!
 
             #### ডাউনলোড ফাইলসমূহ:
-            - **AIAssistant-debug.apk**: সরাসরি যেকোনো অ্যান্ড্রয়েড ডিভাইসে ইনস্টলযোগ্য (Install via Unknown Sources/Package Installer)
-            - **AIAssistant-release.apk**: প্রোডাকশন অপ্টিমাইজড রিলিজ বিল্ড
+            - **AIAssistant-debug.apk**: সরাসরি যেকোনো অ্যান্ড্রয়েড মোবাইলে ইনস্টলযোগ্য (Install via Unknown Sources)
+            - **AIAssistant-release.apk**: অপ্টিমাইজড রিলিজ এপিকে
 
             #### যেভাবে ইনস্টল করবেন:
-            1. নিচে থাকা `AIAssistant-debug.apk` ফাইলে ক্লিক করে ডাউনলোড করুন।
-            2. নোটিফিকেশন বার অথবা ডাউনলোড ফোল্ডার থেকে ফাইলটি খুলুন।
-            3. "Install from Unknown Sources" বা "অনুমতি দিন" চাপুন।
-            4. অ্যাপসটি আপনার হোম স্ক্রিনে যুক্ত হয়ে যাবে!
+            1. নিচে Assets সেকশন থেকে `AIAssistant-debug.apk` ডাউনলোড করুন।
+            2. ফাইলে ক্লিক করে "Install" চাপুন।
+            3. "Install unknown apps" অনুমতি চাইলে Enable করুন।
           files: release-apks/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
