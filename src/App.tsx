@@ -20,10 +20,20 @@ import {
   PinOff,
   Globe,
   BarChart3,
-  CreditCard
+  CreditCard,
+  Users,
+  Mic,
+  MicOff,
+  PhoneOff
 } from 'lucide-react';
 import { ProjectMetricsModal } from './components/ProjectMetricsModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
+import { CommunityHubModal } from './components/CommunityHubModal';
+import { AndroidApkReleaseModal } from './components/AndroidApkReleaseModal';
+import { IncomingCallToast } from './components/IncomingCallToast';
+import { CallSession } from './types/community';
+import { getLocalUserProfile } from './lib/communityService';
+import { useCall } from './context/CallContext';
 import { ChatMessage, ChatSession, AssistantMode } from './types';
 import { QUICK_PROMPTS } from './data/prompts';
 import { Header } from './components/Header';
@@ -101,6 +111,8 @@ export default function App() {
     return [initialSession];
   });
 
+  const { user, setIsSyncing } = useAuth();
+
   const [activeSessionId, setActiveSessionId] = useState<string>(() => sessions[0]?.id || 'session-1');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -116,6 +128,7 @@ export default function App() {
   const [founderProfileModalOpen, setFounderProfileModalOpen] = useState(false);
   const [metricsModalOpen, setMetricsModalOpen] = useState(false);
   const [paymentGatewayModalOpen, setPaymentGatewayModalOpen] = useState(false);
+  const [androidReleaseModalOpen, setAndroidReleaseModalOpen] = useState(false);
   const [universalAppsModalConfig, setUniversalAppsModalConfig] = useState<{
     isOpen: boolean;
     tab: UniversalTab;
@@ -123,6 +136,48 @@ export default function App() {
     isOpen: false,
     tab: 'apps',
   });
+
+  const [communityHubConfig, setCommunityHubConfig] = useState<{
+    isOpen: boolean;
+    initialTab: 'members' | 'messages' | 'calls';
+    targetUserId?: string;
+  }>({
+    isOpen: false,
+    initialTab: 'members',
+  });
+
+  // Global Call Engine from CallContext
+  const {
+    incomingCall,
+    activeCall,
+    acceptCall,
+    declineCall,
+    endCall,
+    toggleMute,
+    isMuted,
+    callDuration,
+  } = useCall();
+
+  const handleOpenCommunityHub = (tab: 'members' | 'messages' | 'calls' = 'members', targetUserId?: string) => {
+    setCommunityHubConfig({
+      isOpen: true,
+      initialTab: tab,
+      targetUserId,
+    });
+  };
+
+  const handleAcceptIncomingCall = async (call: CallSession, withVideo: boolean) => {
+    await acceptCall(call, withVideo);
+    setCommunityHubConfig({
+      isOpen: true,
+      initialTab: 'calls',
+      targetUserId: call.callerId,
+    });
+  };
+
+  const handleDeclineIncomingCall = async (callId: string) => {
+    await declineCall(callId);
+  };
 
   const handleOpenUniversalApps = (tab: UniversalTab = 'apps') => {
     setUniversalAppsModalConfig({
@@ -173,8 +228,6 @@ export default function App() {
     code: '',
     language: 'html',
   });
-
-  const { user, setIsSyncing } = useAuth();
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -833,7 +886,7 @@ export default function App() {
   return (
     <MusicPlayerProvider>
       <MiniBrowserProvider>
-        <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
+        <div className="flex h-screen h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
         {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
@@ -850,6 +903,8 @@ export default function App() {
         onOpenCitizenServices={() => setCitizenModalOpen(true)}
         onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
         onOpenUniversalApps={handleOpenUniversalApps}
+        onOpenCommunityHub={() => handleOpenCommunityHub()}
+        onOpenAndroidRelease={() => setAndroidReleaseModalOpen(true)}
         onOpenMetrics={() => setMetricsModalOpen(true)}
         onOpenPaymentGateway={() => setPaymentGatewayModalOpen(true)}
         onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
@@ -869,6 +924,8 @@ export default function App() {
           onOpenCitizenServices={() => setCitizenModalOpen(true)}
           onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
           onOpenUniversalApps={handleOpenUniversalApps}
+          onOpenCommunityHub={() => handleOpenCommunityHub()}
+          onOpenAndroidRelease={() => setAndroidReleaseModalOpen(true)}
           onOpenMetrics={() => setMetricsModalOpen(true)}
           onOpenPaymentGateway={() => setPaymentGatewayModalOpen(true)}
           onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
@@ -921,6 +978,20 @@ export default function App() {
                   >
                     <Globe className="w-4 h-4 text-blue-200 group-hover:scale-110 transition-transform" />
                     <span>সকল অ্যাপস, জিমেইল ও কানেক্ট হাব</span>
+                  </button>
+
+                  <button
+                    id="hero-community-hub-btn"
+                    onClick={() => handleOpenCommunityHub('members')}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:brightness-110 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+                    title="কমিউনিটি মেম্বারদের মেসেজ ও ভিডিও কল করুন"
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
+                    </span>
+                    <Users className="w-4 h-4 text-emerald-100 group-hover:scale-110 transition-transform" />
+                    <span>কমিউনিটি চ্যাট ও লাইভ ভিডিও কলিং</span>
                   </button>
 
                   <button
@@ -1252,19 +1323,21 @@ export default function App() {
           )}
         </div>
 
-        {/* Input Bar */}
-        <ChatInput
-          input={input}
-          setInput={setInput}
-          onSend={(text) => handleSendMessage(text)}
-          onStop={handleStopGenerating}
-          isGenerating={isGenerating}
-          enableSearch={enableSearch}
-          setEnableSearch={setEnableSearch}
-          mode={mode}
-          setMode={setMode}
-          onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
-        />
+        {/* Safe-area aware Sticky Bottom Input Container */}
+        <div className="sticky bottom-0 z-20 w-full pb-safe">
+          <ChatInput
+            input={input}
+            setInput={setInput}
+            onSend={(text) => handleSendMessage(text)}
+            onStop={handleStopGenerating}
+            isGenerating={isGenerating}
+            enableSearch={enableSearch}
+            setEnableSearch={setEnableSearch}
+            mode={mode}
+            setMode={setMode}
+            onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
+          />
+        </div>
       </div>
 
       {/* Architecture Guide Modal */}
@@ -1402,6 +1475,65 @@ export default function App() {
         onClose={() => setPaymentGatewayModalOpen(false)}
         onSendToChat={(prompt) => handleSendMessage(prompt)}
       />
+
+      {/* Android APK & GitHub Release Hub Modal */}
+      <AndroidApkReleaseModal
+        isOpen={androidReleaseModalOpen}
+        onClose={() => setAndroidReleaseModalOpen(false)}
+      />
+
+      {/* Community Messaging, Member Directory & WebRTC Audio/Video Calling Modal */}
+      <CommunityHubModal
+        isOpen={communityHubConfig.isOpen}
+        onClose={() => setCommunityHubConfig((prev) => ({ ...prev, isOpen: false }))}
+        initialTab={communityHubConfig.initialTab}
+        targetUserId={communityHubConfig.targetUserId}
+      />
+
+      {/* Global Incoming WebRTC Audio/Video Call Alert */}
+      <IncomingCallToast
+        call={incomingCall}
+        onAccept={handleAcceptIncomingCall}
+        onDecline={handleDeclineIncomingCall}
+      />
+
+      {/* Floating Active Call Bar when modal is minimized during connected call */}
+      {activeCall && activeCall.status === 'connected' && !communityHubConfig.isOpen && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-stone-900/95 text-white border border-emerald-500/50 shadow-2xl backdrop-blur-xl animate-in slide-in-from-top-4">
+          <div className="relative flex items-center">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping absolute -top-0.5 -right-0.5" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold truncate max-w-[120px]">
+              {activeCall.callerId === (user?.uid || getLocalUserProfile().id) ? activeCall.receiverName : activeCall.callerName}
+            </p>
+            <p className="text-[10px] font-mono text-emerald-400 font-semibold">
+              {Math.floor(callDuration / 60).toString().padStart(2, '0')}:{(callDuration % 60).toString().padStart(2, '0')}
+            </p>
+          </div>
+          <button
+            onClick={() => setCommunityHubConfig({ isOpen: true, initialTab: 'calls' })}
+            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors cursor-pointer"
+          >
+            কল দেখুন
+          </button>
+          <button
+            onClick={toggleMute}
+            className={`p-1.5 rounded-lg text-xs ${isMuted ? 'bg-rose-600 text-white' : 'bg-stone-800 text-stone-300'} cursor-pointer`}
+            title={isMuted ? 'আনমিউট' : 'মিউট'}
+          >
+            {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={endCall}
+            className="p-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+            title="কল শেষ করুন"
+          >
+            <PhoneOff className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* PWA Offline Indicator */}
       <OfflineIndicator />

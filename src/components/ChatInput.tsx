@@ -146,8 +146,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   ];
 
   return (
-    <div className="border-t border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-3 pt-2 pb-3.5 sm:px-6 md:px-8 md:pt-2.5 md:pb-6 lg:pb-7 transition-all shrink-0">
-      <div className="max-w-4xl mx-auto space-y-2">
+    <div className="sticky bottom-0 z-30 border-t border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-2.5 sm:px-6 md:px-8 pt-2 pb-safe pb-2.5 sm:pb-5 md:pb-6 transition-all shrink-0">
+      <div className="max-w-4xl mx-auto space-y-2 pb-safe">
         {/* Error notification if microphone is blocked or failed */}
         {errorMessage && (
           <div
@@ -336,12 +336,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ? 'কথা বলুন... আপনার কণ্ঠস্বর রেকর্ড হচ্ছে এবং ছেড়ে দিলে টেক্সট আকারে রূপান্তর হবে...'
                 : 'গান বা ইউটিউব ভিডিও লিঙ্ক, ওয়েবসাইট সন্ধান, কোডিং বা যেকোনো প্রশ্ন লিখুন...'
             }
-            className="w-full resize-none bg-transparent px-4 pt-3.5 pb-11 text-sm text-stone-900 dark:text-stone-100 placeholder-stone-400 focus:outline-none leading-relaxed"
+            className="w-full resize-none bg-transparent px-3.5 sm:px-4 pt-3 sm:pt-3.5 pb-12 sm:pb-11 text-sm text-stone-900 dark:text-stone-100 placeholder-stone-400 focus:outline-none leading-relaxed"
           />
 
           {/* Bottom Bar inside Input */}
-          <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
+          <div className="absolute bottom-2 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between gap-1 sm:gap-2 max-w-full">
+            <div className="flex-1 min-w-0 flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 pr-1">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -513,34 +513,47 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <span>{voiceLang === 'bn-BD' ? 'বাং' : 'EN'}</span>
               </button>
 
+              {/* Mobile Word & Character Counter */}
+              <div className="sm:hidden shrink-0">
+                <WordCharCounter
+                  text={input}
+                  onCleanWhitespace={(cleaned) => setInput(cleaned)}
+                />
+              </div>
+
               {input && (
                 <button
                   id="clear-input-btn"
+                  type="button"
                   onClick={() => setInput('')}
                   title="লেখা মুছুন"
-                  className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                  className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors shrink-0 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2.5">
-              {/* Word & Character Counter Component */}
-              <WordCharCounter
-                text={input}
-                onCleanWhitespace={(cleaned) => setInput(cleaned)}
-              />
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-1.5 z-20">
+              {/* Desktop / Tablet Word & Character Counter Component */}
+              <div className="hidden sm:inline-flex shrink-0">
+                <WordCharCounter
+                  text={input}
+                  onCleanWhitespace={(cleaned) => setInput(cleaned)}
+                />
+              </div>
 
-              <span className="hidden lg:inline text-[11px] text-stone-400">
+              <span className="hidden lg:inline text-[11px] text-stone-400 whitespace-nowrap">
                 Enter পাঠাতে | 'পাঠাও' ভয়েস
               </span>
 
               {isGenerating ? (
                 <button
                   id="stop-generating-btn"
+                  type="button"
                   onClick={onStop}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors shrink-0 cursor-pointer"
+                  title="উত্তর তৈরি বন্ধ করুন"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span>থামাও</span>
@@ -548,17 +561,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               ) : (
                 <button
                   id="send-message-btn"
+                  type="button"
                   onClick={() => {
                     if (isRecording) stopRecording();
                     onSend();
                   }}
                   disabled={!input.trim()}
-                  className={`p-2 rounded-xl transition-all ${
+                  aria-label="মেসেজ পাঠান (Send message)"
+                  className={`p-2.5 sm:p-2.5 rounded-xl transition-all shrink-0 min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer ${
                     input.trim()
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                      : 'bg-stone-200 dark:bg-stone-800 text-stone-400 cursor-not-allowed'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-md shadow-emerald-600/30 active:scale-95'
+                      : 'bg-stone-100 dark:bg-stone-850 text-stone-400 dark:text-stone-600 border border-stone-200/80 dark:border-stone-800 cursor-not-allowed'
                   }`}
-                  title="মেসেজ পাঠান"
+                  title="মেসেজ পাঠান (Send message)"
                 >
                   <Send className="w-4 h-4" />
                 </button>

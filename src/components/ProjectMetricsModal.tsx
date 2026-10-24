@@ -17,7 +17,8 @@ import {
   RefreshCw,
   FolderGit2,
   CheckCircle2,
-  Cpu
+  Cpu,
+  CreditCard
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -35,6 +36,7 @@ import {
   Legend
 } from 'recharts';
 import { ChatSession, AssistantMode } from '../types';
+import { PaymentGatewayAttemptsBarChart } from './PaymentGatewayAttemptsBarChart';
 
 interface ProjectMetricsModalProps {
   isOpen: boolean;
@@ -42,9 +44,10 @@ interface ProjectMetricsModalProps {
   sessions: ChatSession[];
   activeSessionId?: string;
   onSelectSession?: (sessionId: string) => void;
+  onOpenPaymentGateway?: () => void;
 }
 
-type TabType = 'chat' | 'projects' | 'performance';
+type TabType = 'chat' | 'projects' | 'payments' | 'performance';
 type TimeRange = 'all' | '7d' | '30d';
 
 const MODE_COLORS: Record<string, string> = {
@@ -81,6 +84,7 @@ export const ProjectMetricsModal: React.FC<ProjectMetricsModalProps> = ({
   sessions,
   activeSessionId,
   onSelectSession,
+  onOpenPaymentGateway,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('chat');
   const [timeRange, setTimeRange] = useState<TimeRange>('all');

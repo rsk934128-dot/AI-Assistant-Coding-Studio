@@ -189,7 +189,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
       id="in-app-music-streaming-player"
       className={
         isMinimized
-          ? 'fixed bottom-4 right-4 z-50 w-[340px] sm:w-[380px] bg-stone-950/95 text-stone-100 border border-red-500/50 rounded-2xl shadow-2xl backdrop-blur-xl p-3 flex flex-col gap-2.5 transition-all duration-300 animate-in slide-in-from-bottom-5'
+          ? 'fixed bottom-24 right-3 sm:bottom-4 sm:right-4 z-50 w-[calc(100vw-24px)] max-w-[340px] sm:w-[380px] bg-stone-950/95 text-stone-100 border border-red-500/50 rounded-2xl shadow-2xl backdrop-blur-xl p-3 flex flex-col gap-2.5 transition-all duration-300 animate-in slide-in-from-bottom-5'
           : 'fixed inset-0 z-50 flex flex-col bg-stone-950/98 text-stone-100 backdrop-blur-2xl overflow-y-auto antialiased animate-in fade-in duration-200'
       }
     >

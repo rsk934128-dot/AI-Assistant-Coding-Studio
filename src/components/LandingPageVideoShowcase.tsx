@@ -444,7 +444,7 @@ export const LandingPageVideoShowcase: React.FC<LandingPageVideoShowcaseProps> =
           <button
             type="button"
             onClick={() => scrollToVideoPlayer(true)}
-            className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-2xl shadow-red-600/50 backdrop-blur-md border border-red-400/40 transition-all cursor-pointer animate-bounce"
+            className="fixed bottom-24 right-4 sm:bottom-28 sm:right-6 z-30 inline-flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-2xl shadow-red-600/50 backdrop-blur-md border border-red-400/40 transition-all cursor-pointer animate-bounce"
             title="ভিডিও প্লেয়ার দেখার স্থানে যান"
           >
             <Play className="w-3.5 h-3.5 fill-current" />

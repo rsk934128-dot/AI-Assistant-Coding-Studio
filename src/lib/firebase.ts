@@ -199,17 +199,32 @@ export async function signInWithGoogle(withDriveScopes = false): Promise<{ user:
     
     // Sync user profile to Firestore
     const userRef = doc(db, 'users', user.uid);
+    const commUserRef = doc(db, 'community_users', user.uid);
     const path = `users/${user.uid}`;
     try {
       const userDoc = await getDoc(userRef);
       const existingData = userDoc.exists() ? userDoc.data() : null;
-      await setDoc(userRef, {
+      const profileData = {
         id: user.uid,
         email: user.email || '',
-        displayName: user.displayName || 'User',
+        displayName: user.displayName || 'গুগল ব্যবহারকারী',
         photoURL: user.photoURL || '',
         updatedAt: new Date().toISOString(),
         createdAt: existingData?.createdAt || new Date().toISOString(),
+      };
+      await setDoc(userRef, profileData, { merge: true });
+
+      // Register into public community users directory for live presence, messaging & calling
+      await setDoc(commUserRef, {
+        id: user.uid,
+        displayName: user.displayName || 'গুগল ব্যবহারকারী',
+        email: user.email || '',
+        photoURL: user.photoURL || '',
+        isOnline: true,
+        lastActive: Date.now(),
+        role: 'গুগল ভেরিফায়েড অ্যাকাউন্ট',
+        bio: 'প্ল্যাটফর্মে সক্রিয় রিয়েল গুগল অ্যাকাউন্টধারী।',
+        joinedAt: Date.now(),
       }, { merge: true });
     } catch (err: any) {
       const errStr = (err?.message || String(err)).toLowerCase();

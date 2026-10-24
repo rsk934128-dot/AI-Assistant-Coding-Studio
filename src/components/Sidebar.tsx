@@ -34,7 +34,8 @@ import {
   FolderGit2,
   Users,
   BarChart3,
-  CreditCard
+  CreditCard,
+  Smartphone
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -59,6 +60,8 @@ interface SidebarProps {
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
   onOpenUniversalApps?: (tab?: UniversalTab) => void;
+  onOpenCommunityHub?: () => void;
+  onOpenAndroidRelease?: () => void;
   onOpenMetrics?: () => void;
   onOpenPaymentGateway?: () => void;
   onOpenGoogleDrive?: () => void;
@@ -84,6 +87,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCitizenServices,
   onOpenFreelanceAgent,
   onOpenUniversalApps,
+  onOpenCommunityHub,
+  onOpenAndroidRelease,
   onOpenMetrics,
   onOpenPaymentGateway,
   onOpenGoogleDrive,
@@ -550,6 +555,71 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Community & Live Audio/Video Calling Hub */}
+                  {onOpenCommunityHub && (
+                    <button
+                      id="sidebar-prog-community-hub"
+                      onClick={() => {
+                        onOpenCommunityHub();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:bg-emerald-500/15 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-400/50 dark:border-emerald-750 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200 truncate">
+                              কমিউনিটি ও লাইভ কলিং
+                            </p>
+                            <span className="flex h-2 w-2 relative">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90 truncate">
+                            অনলাইন স্ট্যাটাস, চ্যাট ও ভিডিও কল
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Android APK & GitHub Release Hub */}
+                  {onOpenAndroidRelease && (
+                    <button
+                      id="sidebar-prog-android-release"
+                      onClick={() => {
+                        onOpenAndroidRelease();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-transparent hover:bg-teal-500/15 dark:bg-teal-950/40 dark:hover:bg-teal-950/70 border border-teal-400/50 dark:border-teal-750 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Smartphone className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-teal-950 dark:text-teal-200 truncate">
+                              অ্যান্ড্রয়েড এপিকে রিলিজ
+                            </p>
+                            <span className="px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-700 dark:text-teal-300 font-bold text-[9px]">
+                              GitHub APK
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-teal-700/90 dark:text-teal-400/90 truncate">
+                            অটোমেটিক গিটহাব অ্যাকশনস এপিকে
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   )}
 

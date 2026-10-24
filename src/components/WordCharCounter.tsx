@@ -142,7 +142,7 @@ export const WordCharCounter: React.FC<WordCharCounterProps> = ({
             : 'text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300'
         }`} />
 
-        <div className="flex items-center gap-1 tracking-tight">
+        <div className="hidden sm:flex items-center gap-1 tracking-tight">
           <span className="font-semibold text-stone-800 dark:text-stone-200">
             {toBengaliDigits(stats.words)}
           </span>
@@ -156,7 +156,13 @@ export const WordCharCounter: React.FC<WordCharCounterProps> = ({
           <span className="text-[11px] text-stone-500 dark:text-stone-400">অক্ষর</span>
         </div>
 
-        <Info className={`w-3 h-3 ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity ${
+        {stats.totalChars > 0 && (
+          <span className="sm:hidden text-[10px] font-semibold text-stone-700 dark:text-stone-300">
+            {toBengaliDigits(stats.words)}
+          </span>
+        )}
+
+        <Info className={`hidden sm:inline-block w-3 h-3 ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity ${
           isOpen ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400'
         }`} />
       </button>

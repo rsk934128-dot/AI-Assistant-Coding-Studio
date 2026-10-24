@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, signInWithGoogle, signOutUser } from '../lib/firebase';
+import { syncGoogleUserToCommunity } from '../lib/communityService';
 
 interface AuthContextType {
   user: User | null;
@@ -39,7 +40,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
-      if (!currentUser) {
+      if (currentUser) {
+        syncGoogleUserToCommunity(currentUser).catch(() => {});
+      } else {
         setAccessToken(null);
       }
     });

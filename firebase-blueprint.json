@@ -111,6 +111,147 @@
         }
       },
       "required": ["id", "sessionId", "userId", "role", "content", "timestamp"]
+    },
+    "CommunityUser": {
+      "title": "CommunityUser",
+      "description": "Public directory of registered platform users with online presence",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "email": {
+          "type": "string",
+          "description": "Public email or username handle"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User avatar URL"
+        },
+        "isOnline": {
+          "type": "boolean",
+          "description": "Real-time presence status"
+        },
+        "lastActive": {
+          "type": "number",
+          "description": "Timestamp in milliseconds of last platform activity"
+        },
+        "role": {
+          "type": "string",
+          "description": "User role or bio title"
+        },
+        "bio": {
+          "type": "string",
+          "description": "User short bio or status message"
+        }
+      },
+      "required": ["id", "displayName", "isOnline", "lastActive"]
+    },
+    "CommunityMessage": {
+      "title": "CommunityMessage",
+      "description": "Direct and community messages exchanged between users",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Message UUID"
+        },
+        "conversationId": {
+          "type": "string",
+          "description": "Identifier for conversation thread"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Sender user ID"
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Sender display name"
+        },
+        "senderPhoto": {
+          "type": "string",
+          "description": "Sender avatar URL"
+        },
+        "receiverId": {
+          "type": "string",
+          "description": "Target receiver ID or 'community_public'"
+        },
+        "text": {
+          "type": "string",
+          "description": "Message text content",
+          "maxLength": 10000
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "audio", "call_log", "image"]
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Message creation timestamp in milliseconds"
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Whether the message has been read by the receiver"
+        }
+      },
+      "required": ["id", "conversationId", "senderId", "senderName", "receiverId", "text", "timestamp"]
+    },
+    "CallSession": {
+      "title": "CallSession",
+      "description": "Audio and video call signaling sessions between users",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Call session identifier"
+        },
+        "callerId": {
+          "type": "string",
+          "description": "Caller user ID"
+        },
+        "callerName": {
+          "type": "string",
+          "description": "Caller display name"
+        },
+        "callerPhoto": {
+          "type": "string",
+          "description": "Caller avatar URL"
+        },
+        "receiverId": {
+          "type": "string",
+          "description": "Receiver user ID"
+        },
+        "receiverName": {
+          "type": "string",
+          "description": "Receiver display name"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["audio", "video"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["calling", "ringing", "connected", "ended", "declined", "missed"]
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Call initiation timestamp"
+        },
+        "endedAt": {
+          "type": "number",
+          "description": "Call termination timestamp"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Call duration in seconds"
+        }
+      },
+      "required": ["id", "callerId", "callerName", "receiverId", "type", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -125,6 +266,18 @@
     "/users/{userId}/sessions/{sessionId}/messages/{messageId}": {
       "schema": "ChatMessage",
       "description": "Messages inside a user private chat session"
+    },
+    "/community_users/{userId}": {
+      "schema": "CommunityUser",
+      "description": "Public community member directory showing who is using the platform and live online/offline presence"
+    },
+    "/community_messages/{messageId}": {
+      "schema": "CommunityMessage",
+      "description": "Messages sent between users in direct chats or the community group"
+    },
+    "/calls/{callId}": {
+      "schema": "CallSession",
+      "description": "Audio and video call sessions and WebRTC signaling between users"
     }
   }
 }

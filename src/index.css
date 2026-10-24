@@ -119,3 +119,9 @@ code, pre, .font-mono {
   color: #52525b;
 }
 
+/* Safe-area aware utility for mobile devices (iOS Safari & Android navigation bars) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+

@@ -31,7 +31,9 @@ import {
   Pin,
   PinOff,
   BarChart3,
-  CreditCard
+  CreditCard,
+  Users,
+  Smartphone
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -48,6 +50,8 @@ interface HeaderProps {
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
   onOpenUniversalApps?: (tab?: UniversalTab) => void;
+  onOpenCommunityHub?: () => void;
+  onOpenAndroidRelease?: () => void;
   onOpenMetrics?: () => void;
   onOpenPaymentGateway?: () => void;
   onOpenGoogleDrive?: () => void;
@@ -77,6 +81,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCitizenServices,
   onOpenFreelanceAgent,
   onOpenUniversalApps,
+  onOpenCommunityHub,
+  onOpenAndroidRelease,
   onOpenMetrics,
   onOpenPaymentGateway,
   onOpenGoogleDrive,
@@ -322,6 +328,23 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
+        {onOpenCommunityHub && (
+          <button
+            id="open-community-hub-btn"
+            onClick={onOpenCommunityHub}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white shadow-xs transition-all cursor-pointer group"
+            title="কমিউনিটি মেম্বার, লাইভ অনলাইন স্ট্যাটাস ও অডিও/ভিডিও কলিং"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+            </span>
+            <Users className="w-3.5 h-3.5 text-emerald-100 group-hover:scale-110 transition-transform" />
+            <span className="hidden md:inline">কমিউনিটি ও কলিং</span>
+            <span className="md:hidden hidden sm:inline">কমিউনিটি</span>
+          </button>
+        )}
+
         {onOpenMetrics && (
           <button
             id="open-metrics-btn"
@@ -345,6 +368,19 @@ export const Header: React.FC<HeaderProps> = ({
             <CreditCard className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span className="hidden md:inline">পেমেন্ট গেটওয়ে</span>
             <span className="md:hidden hidden sm:inline">পেমেন্ট</span>
+          </button>
+        )}
+
+        {onOpenAndroidRelease && (
+          <button
+            id="open-android-release-btn"
+            onClick={onOpenAndroidRelease}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-emerald-600/10 to-teal-600/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition-colors shadow-xs cursor-pointer"
+            title="গিটহাব থেকে অ্যান্ড্রয়েড এপিকে (Android APK) রিলিজ ও ইনস্টলেশন গাইড"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden lg:inline">অ্যান্ড্রয়েড এপিকে</span>
+            <span className="lg:hidden hidden sm:inline">APK</span>
           </button>
         )}
 
