@@ -647,8 +647,21 @@ export default function App() {
         try {
           const errorData = await response.json();
           if (errorData?.error) {
-            errorMsg = errorData.error;
+            if (typeof errorData.error === 'string') {
+              errorMsg = errorData.error;
+            } else if (typeof errorData.error?.message === 'string') {
+              errorMsg = errorData.error.message;
+            } else {
+              errorMsg = JSON.stringify(errorData.error);
+            }
           }
+          try {
+            if (typeof errorMsg === 'string' && (errorMsg.startsWith('{') || errorMsg.startsWith('['))) {
+              const unpacked = JSON.parse(errorMsg);
+              if (unpacked?.error?.message) errorMsg = unpacked.error.message;
+              else if (unpacked?.message) errorMsg = unpacked.message;
+            }
+          } catch {}
         } catch {
           if (response.status === 404) {
             errorMsg = 'সার্ভার অ্যান্ডপয়েন্ট পাওয়া যায়নি (HTTP 404)। আপনি কি স্ট্যাটিক হোস্টিংয়ে আছেন? হোস্টিং গাইড চেক করুন।';

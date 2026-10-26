@@ -21,7 +21,6 @@ export const FALLBACK_MODELS = [
   'gemini-3.8-flash',
   'gemini-flash-latest',
   'gemini-3.1-flash-lite',
-  'gemini-4-argon',
 ];
 
 process.on('uncaughtException', (err) => {
@@ -187,8 +186,33 @@ app.get('/api/tts', async (req, res) => {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function formatFriendlyErrorMessage(err: any): string {
-  const errStr = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
+  let errStr = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
+  try {
+    if (typeof err?.message === 'string' && (err.message.startsWith('{') || err.message.startsWith('['))) {
+      const parsed = JSON.parse(err.message);
+      if (parsed?.error?.message) {
+        errStr = parsed.error.message;
+      }
+    }
+  } catch {}
+
   const lower = errStr.toLowerCase();
+
+  if (
+    lower.includes('leaked') ||
+    lower.includes('reported as leaked')
+  ) {
+    return '⚠️ আপনার বর্তমান Gemini API Key-টি পাবলিক বা লিক হিসেবে চিহ্নিত হওয়ায় গুগল নিরাপত্তা জনিত কারণে এটি বাতিল করেছে ("Your API key was reported as leaked. Please use another API key.")। অনুগ্রহ করে Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি নতুন API Key তৈরি করে Settings > Secrets প্যানেল অথবা হোস্টিংয়ের Environment Variables-এ "GEMINI_API_KEY" আপডেট করুন।';
+  }
+
+  if (
+    lower.includes('permission_denied') ||
+    lower.includes('403 forbidden') ||
+    lower.includes('code": 403')
+  ) {
+    return '⚠️ এআই এপিআই অনুমতি সমস্যা (HTTP 403 Permission Denied)। আপনার API Key সাময়িকভাবে ব্লক বা নিষ্ক্রিয় হতে পারে। অনুগ্রহ করে Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি সক্রিয় API Key নিশ্চিত করুন।';
+  }
+
   if (
     lower.includes('429') ||
     lower.includes('quota') ||
@@ -198,12 +222,15 @@ function formatFriendlyErrorMessage(err: any): string {
   ) {
     return 'এআই কোটা সীমা (API Rate Limit / Quota Exceeded 429) সাময়িকভাবে শেষ হয়েছে। Google Gemini ফ্রি টায়ারের প্রতি মিনিটের রিকোয়েস্ট সীমা অতিক্রম করলে এই বার্তা আসে। অনুগ্রহ করে ১০-১৫ সেকেন্ড অপেক্ষা করে নিচের "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন অথবা Google Search অফ করে মেসেজ পাঠান।';
   }
+
   if (lower.includes('503') || lower.includes('unavailable') || lower.includes('high demand') || lower.includes('overloaded')) {
     return 'গুগল এআই সার্ভার এই মুহূর্তে অতিরিক্ত চাপে রয়েছে (503 Service Unavailable)। স্বয়ংক্রিয়ভাবে বিকল্প মডেলে চেষ্টা করা হচ্ছে... কয়েক সেকেন্ড পর পুনরায় চেষ্টা করুন।';
   }
+
   if (lower.includes('404') || lower.includes('not_found') || lower.includes('no longer available')) {
     return 'অনুরোধকৃত এআই মডেলটি এই মুহূর্তে প্রস্তুত নয় (404 Not Found)। সিস্টেম স্বয়ংক্রিয়ভাবে বিকল্প সক্রিয় মডেলে সংযোগ করছে।';
   }
+
   if (
     errStr.includes('API_KEY') ||
     errStr.includes('API key not valid') ||
@@ -212,7 +239,8 @@ function formatFriendlyErrorMessage(err: any): string {
   ) {
     return 'Gemini API Key পাওয়া যায়নি বা সঠিক নয়। আপনি যদি অ্যাপটি ক্লাউড/হোস্টিং (যেমন Render, Cloud Run, Vercel, Railway)-এ হোস্ট করে থাকেন, তবে হোস্টিং কন্ট্রোল প্যানেলের Environment Variables সেকশনে "GEMINI_API_KEY" যোগ করেছেন কিনা তা নিশ্চিত করুন।';
   }
-  return err?.message || 'একটি অপ্রত্যাশিত সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
+
+  return errStr || 'একটি অপ্রত্যাশিত সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
 }
 
 async function fetchStreamWithResilience(
@@ -677,7 +705,12 @@ When code is requested, provide clean, idiomatic, runnable code with clear comme
 
     res.end();
   } catch (error: any) {
-    console.error('Error in /api/chat/stream:', error?.message || error);
+    const errText = typeof error?.message === 'string' ? error.message : JSON.stringify(error || '');
+    if (errText.includes('leaked') || errText.includes('PERMISSION_DENIED') || error?.code === 403 || error?.status === 403) {
+      console.warn('Gemini API key is invalid or revoked (403): User needs to select a fresh API key in AI Studio.');
+    } else {
+      console.error('Error in /api/chat/stream:', error?.message || error);
+    }
     const friendlyErrorMessage = formatFriendlyErrorMessage(error);
     
     // If headers already sent, write error event

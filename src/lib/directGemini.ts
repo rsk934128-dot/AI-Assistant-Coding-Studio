@@ -22,12 +22,11 @@ export interface DirectGeminiStreamOptions {
 }
 
 export function getDirectGeminiApiKey(): string {
-  const envKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)?.trim();
-  return envKey || '';
+  return '';
 }
 
 export function isDirectGeminiAvailable(): boolean {
-  return Boolean(getDirectGeminiApiKey());
+  return false;
 }
 
 const DEFAULT_SYSTEM_INSTRUCTION = `You are the official AI Assistant of "AI Assistant & Coding Studio" (বাংলা ও ইংরেজি স্মার্ট এআই সহকারী ও কোডিং স্টুডিও).
@@ -163,12 +162,11 @@ export async function callDirectGeminiStream(options: DirectGeminiStreamOptions)
     ];
   }
 
-  // Models to try with multi-family fallback support
+  // Models to try with multi-family fallback support (Free Tier)
   const modelsToTry = [
     'gemini-3.8-flash',
     'gemini-flash-latest',
     'gemini-3.1-flash-lite',
-    'gemini-4-argon',
   ];
   let lastError: any = null;
   let currentPayload = { ...payload };
