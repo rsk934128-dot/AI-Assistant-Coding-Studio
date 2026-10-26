@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface AppLogoProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
   className?: string;
   showBadge?: boolean;
   withGlow?: boolean;
+  useImage?: boolean;
 }
 
 export const AppLogo: React.FC<AppLogoProps> = ({
@@ -12,7 +13,10 @@ export const AppLogo: React.FC<AppLogoProps> = ({
   className = '',
   showBadge = false,
   withGlow = false,
+  useImage = true,
 }) => {
+  const [imgFailed, setImgFailed] = useState(false);
+
   const getDimension = () => {
     if (typeof size === 'number') return size;
     switch (size) {
@@ -26,23 +30,36 @@ export const AppLogo: React.FC<AppLogoProps> = ({
   };
 
   const dim = getDimension();
+  const borderRadius = Math.max(6, Math.round(dim * 0.22));
 
   return (
     <div className={`relative inline-flex items-center justify-center shrink-0 ${className}`}>
       {withGlow && (
         <div 
-          className="absolute inset-0 rounded-2xl bg-emerald-500/25 blur-md -z-10 animate-pulse"
-          style={{ width: dim * 1.1, height: dim * 1.1 }}
+          className="absolute inset-0 rounded-2xl bg-cyan-500/30 blur-md -z-10 animate-pulse"
+          style={{ width: dim * 1.15, height: dim * 1.15 }}
         />
       )}
-      <svg
-        width={dim}
-        height={dim}
-        viewBox="0 0 512 512"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="shrink-0 transition-transform duration-200 hover:scale-105"
-      >
+      {useImage && !imgFailed ? (
+        <img
+          src="/app-logo.png"
+          alt="AI Assistant Logo"
+          width={dim}
+          height={dim}
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+          className="shrink-0 object-cover shadow-md border border-cyan-500/30 transition-transform duration-200 hover:scale-105"
+          style={{ width: dim, height: dim, borderRadius }}
+        />
+      ) : (
+        <svg
+          width={dim}
+          height={dim}
+          viewBox="0 0 512 512"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="shrink-0 transition-transform duration-200 hover:scale-105"
+        >
         <defs>
           {/* Main Background Gradient */}
           <linearGradient id="logoBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -162,6 +179,7 @@ export const AppLogo: React.FC<AppLogoProps> = ({
           <circle cx="0" cy="105" r="9" fill="#34d399" />
         </g>
       </svg>
+      )}
 
       {showBadge && (
         <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-white shadow-xs border border-white dark:border-stone-900">

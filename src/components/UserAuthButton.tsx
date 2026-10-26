@@ -8,7 +8,7 @@ interface UserAuthButtonProps {
 }
 
 export const UserAuthButton: React.FC<UserAuthButtonProps> = ({ onSyncAll, compact = false }) => {
-  const { user, loading, signIn, signOut, isSyncing } = useAuth();
+  const { user, loading, openAuthModal, signOut, isSyncing } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [syncedRecently, setSyncedRecently] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -41,14 +41,14 @@ export const UserAuthButton: React.FC<UserAuthButtonProps> = ({ onSyncAll, compa
     return (
       <button
         id="firebase-google-login-btn"
-        onClick={() => signIn()}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 transition-colors shadow-xs ${
+        onClick={() => openAuthModal()}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/60 dark:hover:bg-cyan-900/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/80 transition-colors shadow-xs ${
           compact ? 'px-2' : ''
         }`}
-        title="গুগল দিয়ে লগইন করে ক্লাউড ফায়ারস্টোরে চ্যাট হিস্ট্রি ব্যাকআপ রাখুন"
+        title="লগইন করে ক্লাউড ফায়ারস্টোরে চ্যাট হিস্ট্রি ব্যাকআপ রাখুন"
       >
-        <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-        <span className={compact ? 'hidden sm:inline' : ''}>ক্লাউড সিঙ্ক</span>
+        <Cloud className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+        <span className={compact ? 'hidden sm:inline' : ''}>লগইন / সিঙ্ক</span>
       </button>
     );
   }

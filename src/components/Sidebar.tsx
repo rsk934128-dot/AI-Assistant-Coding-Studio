@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectMode,
   currentMode,
 }) => {
-  const { user, signIn } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const musicPlayer = useMusicPlayer();
   const miniBrowser = useMiniBrowser();
   const [activeTab, setActiveTab] = useState<'programs' | 'history'>('programs');
@@ -956,7 +956,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <button
               id="sidebar-cloud-login-btn"
-              onClick={() => signIn()}
+              onClick={() => openAuthModal()}
               className="w-full flex items-center justify-between p-2 rounded-xl bg-white hover:bg-stone-100 dark:bg-stone-800 dark:hover:bg-stone-750 border border-stone-200 dark:border-stone-700 text-left transition-colors group cursor-pointer shadow-2xs"
             >
               <div className="flex items-center gap-2">

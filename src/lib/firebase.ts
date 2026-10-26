@@ -3,6 +3,11 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
+  sendPasswordResetEmail,
+  updateProfile,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type User 
@@ -168,7 +173,7 @@ export function formatAuthErrorMessage(error: any): string {
     return 'লগইন পপ-আপ উইন্ডোটি বন্ধ করা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
   }
   if (code === 'auth/popup-blocked') {
-    return 'ব্রাউজার পপ-আপ উইন্ডোটি ব্লক করেছে। অনুগ্রহ করে ব্রাউজার অ্যাড্রেসবারে পপ-আপ অনুমোদন করে পুনরায় চেষ্টা করুন।';
+    return 'ব্রাউজার পপ-আপ উইন্ডোটি ব্লক করেছে। অ্যান্ড্রয়েড অ্যাপে সরাসরি ইমেইল/পাসওয়ার্ড বা গেস্ট মোড দিয়ে লগইন করুন।';
   }
   if (code === 'auth/cancelled-popup-request') {
     return 'পূর্ববর্তী লগইন রিকোয়েস্ট বাতিল হয়েছে। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন।';
@@ -179,10 +184,147 @@ export function formatAuthErrorMessage(error: any): string {
   if (code === 'auth/unauthorized-domain') {
     return 'এই ডোমেইনটি Firebase অনুমোদিত তালিকায় নেই।';
   }
-  if (message.includes('state') || message.includes('missing')) {
-    return 'OAuth সংযোগ ব্যর্থ (Missing state parameter)। ব্রাউজারের থার্ড-পার্টি কুকিজ বা ট্র্যাকিং শিল্ড (যেমন Brave Shields, AdBlock) সাময়িকভাবে নিষ্ক্রিয় করে পুনরায় চেষ্টা করুন।';
+  if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
+    return 'ভুল ইমেইল অথবা পাসওয়ার্ড দেওয়া হয়েছে। পুনরায় সঠিক তথ্য দিন।';
   }
-  return error?.message || 'গুগল সংযোগ স্থাপন করা যায়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
+  if (code === 'auth/user-not-found') {
+    return 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে রেজিস্ট্রেশন করুন।';
+  }
+  if (code === 'auth/email-already-in-use') {
+    return 'এই ইমেইলটি ইতিপূর্বে ব্যবহৃত হয়েছে। দয়া করে লগইন করুন অথবা অন্য ইমেইল ব্যবহার করুন।';
+  }
+  if (code === 'auth/weak-password') {
+    return 'পাসওয়ার্ডটি খুব দুর্বল। অনুগ্রহ করে কমপক্ষে ৬ বা ততোধিক অক্ষরের পাসওয়ার্ড দিন।';
+  }
+  if (code === 'auth/invalid-email') {
+    return 'দয়া করে একটি সঠিক ও কার্যকর ইমেইল অ্যাড্রেস লিখুন।';
+  }
+  if (code === 'auth/operation-not-supported-in-this-environment') {
+    return 'এই প্ল্যাটফর্মে সরাসরি পপ-আপ অনুমোদিত নয়। অনুগ্রহ করে ইমেইল ও পাসওয়ার্ড দিয়ে লগইন করুন।';
+  }
+  if (message.includes('disallowed_useragent') || message.includes('user agent')) {
+    return 'গুগল সিকিউরিটি পলিসির কারণে অ্যাপের ভেতর সরাসরি গুগল পপআপ ব্লক করা হয়েছে। অনুগ্রহ করে ইমেইল ও পাসওয়ার্ড দিয়ে সরাসরি লগইন বা রেজিস্টার করুন।';
+  }
+  if (message.includes('state') || message.includes('missing')) {
+    return 'OAuth সংযোগ ব্যর্থ (Missing state parameter)। ব্রাউজারের থার্ড-পার্টি কুকিজ বা ট্র্যাকিং শিল্ড সাময়িকভাবে নিষ্ক্রিয় করে পুনরায় চেষ্টা করুন।';
+  }
+  return error?.message || 'লগইন সম্পন্ন করা যায়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
+}
+
+/**
+ * Universal profile synchronizer for any authenticated user (Google, Email/Password, Anonymous)
+ */
+export async function syncUserProfile(user: User, fallbackName?: string): Promise<void> {
+  if (!user || !user.uid) return;
+  const userRef = doc(db, 'users', user.uid);
+  const commUserRef = doc(db, 'community_users', user.uid);
+  const path = `users/${user.uid}`;
+  const displayName = user.displayName || fallbackName || (user.isAnonymous ? 'গেস্ট ব্যবহারকারী' : (user.email ? user.email.split('@')[0] : 'ইউজার'));
+  
+  try {
+    const userDoc = await getDoc(userRef);
+    const existingData = userDoc.exists() ? userDoc.data() : null;
+    const profileData = {
+      id: user.uid,
+      email: user.email || (user.isAnonymous ? 'guest@aiassistant.app' : ''),
+      displayName,
+      photoURL: user.photoURL || '',
+      isAnonymous: Boolean(user.isAnonymous),
+      updatedAt: new Date().toISOString(),
+      createdAt: existingData?.createdAt || new Date().toISOString(),
+    };
+    await setDoc(userRef, profileData, { merge: true });
+
+    // Register into community users directory
+    await setDoc(commUserRef, {
+      id: user.uid,
+      displayName,
+      email: user.email || '',
+      photoURL: user.photoURL || '',
+      isOnline: true,
+      lastActive: Date.now(),
+      role: user.isAnonymous ? 'গেস্ট অ্যাকাউন্ট' : 'ভেরিফায়েড অ্যাকাউন্ট',
+      bio: user.isAnonymous ? 'গেস্ট মোডে সক্রিয় সদস্য।' : 'প্ল্যাটফর্মে সক্রিয় রেজিস্টার্ড সদস্য।',
+      joinedAt: existingData?.joinedAt || Date.now(),
+    }, { merge: true });
+  } catch (err: any) {
+    const errStr = (err?.message || String(err)).toLowerCase();
+    if (
+      errStr.includes('offline') ||
+      errStr.includes('could not reach') ||
+      errStr.includes('unavailable') ||
+      errStr.includes('timeout')
+    ) {
+      console.info('User profile write queued in offline cache.');
+    } else {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    }
+  }
+}
+
+/**
+ * Sign in using Email and Password (Works 100% on Native Android WebView & Web)
+ */
+export async function signInWithEmail(email: string, password: string): Promise<User> {
+  try {
+    const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    await syncUserProfile(credential.user);
+    return credential.user;
+  } catch (err: any) {
+    console.error('Email sign-in error:', err);
+    throw new Error(formatAuthErrorMessage(err));
+  }
+}
+
+/**
+ * Sign up using Email, Password, and Display Name
+ */
+export async function signUpWithEmail(email: string, password: string, displayName?: string): Promise<User> {
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const trimmedName = displayName?.trim() || email.split('@')[0];
+    try {
+      await updateProfile(credential.user, { displayName: trimmedName });
+    } catch {
+      // Continue if updateProfile fails
+    }
+    await syncUserProfile(credential.user, trimmedName);
+    return credential.user;
+  } catch (err: any) {
+    console.error('Email sign-up error:', err);
+    throw new Error(formatAuthErrorMessage(err));
+  }
+}
+
+/**
+ * Sign in as Guest / Anonymous user for instant Android access without credentials
+ */
+export async function signInAsGuest(displayName = 'গেস্ট ইউজার'): Promise<User> {
+  try {
+    const credential = await signInAnonymously(auth);
+    try {
+      await updateProfile(credential.user, { displayName });
+    } catch {
+      // Ignore
+    }
+    await syncUserProfile(credential.user, displayName);
+    return credential.user;
+  } catch (err: any) {
+    console.error('Anonymous sign-in error:', err);
+    throw new Error(formatAuthErrorMessage(err));
+  }
+}
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordReset(email: string): Promise<void> {
+  try {
+    await sendPasswordResetEmail(auth, email.trim());
+  } catch (err: any) {
+    console.error('Password reset error:', err);
+    throw new Error(formatAuthErrorMessage(err));
+  }
 }
 
 export async function signInWithGoogle(withDriveScopes = false): Promise<{ user: User; accessToken: string | null }> {

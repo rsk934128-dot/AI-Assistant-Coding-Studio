@@ -30,6 +30,7 @@ import { ProjectMetricsModal } from './components/ProjectMetricsModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { CommunityHubModal } from './components/CommunityHubModal';
 import { AndroidApkReleaseModal } from './components/AndroidApkReleaseModal';
+import { AuthModal } from './components/AuthModal';
 import { IncomingCallToast } from './components/IncomingCallToast';
 import { CallSession } from './types/community';
 import { getLocalUserProfile } from './lib/communityService';
@@ -1494,6 +1495,9 @@ export default function App() {
         isOpen={androidReleaseModalOpen}
         onClose={() => setAndroidReleaseModalOpen(false)}
       />
+
+      {/* Account Authentication & Cloud Sync Modal (Mobile & Web) */}
+      <AuthModal />
 
       {/* Community Messaging, Member Directory & WebRTC Audio/Video Calling Modal */}
       <CommunityHubModal
