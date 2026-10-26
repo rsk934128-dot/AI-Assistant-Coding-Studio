@@ -44,11 +44,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Set up Java JDK 17
+      - name: Set up Java JDK 21 (LTS)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Accept Android SDK Licenses & Install Android 36 SDK
         run: |
