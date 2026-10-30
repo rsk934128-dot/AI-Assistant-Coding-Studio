@@ -35,13 +35,15 @@ import {
   Users,
   BarChart3,
   CreditCard,
-  Smartphone
+  Smartphone,
+  Headphones
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { AppLogo } from './AppLogo';
 import { useAuth } from '../context/AuthContext';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { UniversalTab } from './UniversalAppsConnectModal';
 
@@ -100,6 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user, openAuthModal } = useAuth();
   const musicPlayer = useMusicPlayer();
+  const audioPlayer = useAudioPlayer();
   const miniBrowser = useMiniBrowser();
   const [activeTab, setActiveTab] = useState<'programs' | 'history'>('programs');
   const [historySearchQuery, setHistorySearchQuery] = useState('');
@@ -702,6 +705,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </div>
                     </div>
                     <ChevronRight className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* Dedicated Audio Player & Sound Studio */}
+                  <button
+                    id="sidebar-prog-audio-player"
+                    onClick={() => {
+                      audioPlayer.openPlayer();
+                      if (window.innerWidth < 768) onClose();
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-purple-50/70 hover:bg-purple-100/80 dark:bg-purple-950/30 dark:hover:bg-purple-950/60 border border-purple-300/50 dark:border-purple-850/50 text-left transition-all group cursor-pointer shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                        <Headphones className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold text-purple-950 dark:text-purple-200 truncate">
+                            অডিও প্লেয়ার ও সাউন্ড স্টুডিও
+                          </p>
+                          {audioPlayer.isPlaying && (
+                            <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping inline-block" />
+                          )}
+                        </div>
+                        <p className="text-[10px] text-purple-700/80 dark:text-purple-400/80 truncate">
+                          ওয়েভ ভিজুয়ালাইজার, ফোকাস সাউন্ড ও MP3
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </button>
 
                   {/* Mini Google Browser */}

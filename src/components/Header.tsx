@@ -33,13 +33,16 @@ import {
   BarChart3,
   CreditCard,
   Users,
-  Smartphone
+  Smartphone,
+  Headphones,
+  Music
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { AppLogo } from './AppLogo';
 import { UserAuthButton } from './UserAuthButton';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { UniversalTab } from './UniversalAppsConnectModal';
 
@@ -105,6 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
   onTogglePin,
 }) => {
   const musicPlayer = useMusicPlayer();
+  const audioPlayer = useAudioPlayer();
   const miniBrowser = useMiniBrowser();
   const [isShareDropdownOpen, setIsShareDropdownOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -797,7 +801,21 @@ export const Header: React.FC<HeaderProps> = ({
           title="ইন-অ্যাপ ইউটিউব মিউজিক প্লেয়ার খুলুন"
         >
           <Youtube className="w-3.5 h-3.5 fill-current" />
-          <span className="hidden sm:inline">মিউজিক প্লেয়ার</span>
+          <span className="hidden sm:inline">মিউজিক</span>
+        </button>
+
+        {/* Dedicated Audio Player & Sound Studio */}
+        <button
+          id="audio-player-header-btn"
+          onClick={() => audioPlayer.openPlayer()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/25 transition-all text-xs font-semibold cursor-pointer"
+          title="অডিও প্লেয়ার ও সাউন্ড স্টুডিও খুলুন (ফোকাস সাউন্ড, লোকাল MP3, লাইভ ভিজুয়ালাইজার)"
+        >
+          <Headphones className={`w-3.5 h-3.5 ${audioPlayer.isPlaying ? 'text-pink-400 animate-pulse' : ''}`} />
+          <span className="hidden sm:inline">অডিও প্লেয়ার</span>
+          {audioPlayer.isPlaying && (
+            <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-ping inline-block" />
+          )}
         </button>
 
         {/* Cloud Sync & Firebase User Auth */}

@@ -1457,11 +1457,13 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               </div>
             </div>
           ) : (
-            <div className="text-sm prose-stone dark:prose-invert max-w-none break-words">
-              <Markdown components={MarkdownComponents}>
-                {autoFormatYouTubeLinks(message.text)}
-              </Markdown>
-            </div>
+            message.text && message.text !== message.error ? (
+              <div className="text-sm prose-stone dark:prose-invert max-w-none break-words">
+                <Markdown components={MarkdownComponents}>
+                  {autoFormatYouTubeLinks(message.text)}
+                </Markdown>
+              </div>
+            ) : null
           )}
 
           {/* User Action bar */}

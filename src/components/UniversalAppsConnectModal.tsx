@@ -32,6 +32,7 @@ import {
   Server
 } from 'lucide-react';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
+import { useAuth } from '../context/AuthContext';
 
 export type UniversalTab = 'apps' | 'gmail' | 'message' | 'github' | 'people' | 'ddns';
 
@@ -179,6 +180,7 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
   initialTab = 'apps',
 }) => {
   const miniBrowser = useMiniBrowser();
+  const { user, youtubeChannel, signInWithYouTube } = useAuth();
   const [activeTab, setActiveTab] = useState<UniversalTab>(initialTab);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -720,33 +722,53 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
                         Video & Music
                       </span>
                     </div>
-                    <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                      YouTube সিনেমা ও মিডিয়া স্টুডিও
+                    <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center justify-between gap-2">
+                      <span>YouTube সিনেমা ও মিডিয়া স্টুডিও</span>
+                      {user && (
+                        <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          কানেক্টেড
+                        </span>
+                      )}
                     </h4>
                     <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
-                      ভিডিও গান, টিউটোরিয়াল ও রিল্যাক্সিং সাউন্ড ইন-অ্যাপ ব্যাকগ্রাউন্ড প্লেয়ারে উপভোগ করুন।
+                      {user
+                        ? `Google ও YouTube সংযুক্ত: ${youtubeChannel?.title || user.displayName || user.email}`
+                        : 'ভিডিও গান, টিউটোরিয়াল ও রিল্যাক্সিং সাউন্ড ইন-অ্যাপ ব্যাকগ্রাউন্ড প্লেয়ারে উপভোগ করুন।'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 pt-2 border-t border-stone-200 dark:border-stone-800">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        miniBrowser.openBrowser('https://www.youtube.com', 'youtube');
-                      }}
-                      className="flex-1 py-2 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors cursor-pointer text-center"
-                    >
-                      ইন-অ্যাপ মিডিয়া
-                    </button>
-                    <a
-                      href="https://www.youtube.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-750 text-stone-700 dark:text-stone-300 transition-colors"
-                      title="YouTube সাইটে যান"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
+                  <div className="flex flex-col gap-2 pt-2 border-t border-stone-200 dark:border-stone-800">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          miniBrowser.openBrowser('https://www.youtube.com', 'youtube');
+                        }}
+                        className="flex-1 py-2 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors cursor-pointer text-center"
+                      >
+                        ইন-অ্যাপ মিডিয়া
+                      </button>
+                      <a
+                        href="https://www.youtube.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-750 text-stone-700 dark:text-stone-300 transition-colors"
+                        title="YouTube সাইটে যান"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                    {!user && (
+                      <button
+                        type="button"
+                        onClick={() => signInWithYouTube()}
+                        className="w-full py-1.5 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/40 text-red-600 dark:text-red-300 border border-red-500/30 text-[11px] font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Youtube className="w-3 h-3 fill-current" />
+                        <span>YouTube Google লগইন করুন</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 

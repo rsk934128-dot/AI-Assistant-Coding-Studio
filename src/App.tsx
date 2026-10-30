@@ -24,7 +24,8 @@ import {
   Users,
   Mic,
   MicOff,
-  PhoneOff
+  PhoneOff,
+  Headphones
 } from 'lucide-react';
 import { ProjectMetricsModal } from './components/ProjectMetricsModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
@@ -55,6 +56,9 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { AppLogo } from './components/AppLogo';
 import { MusicPlayerProvider } from './context/MusicPlayerContext';
 import { MusicPlayerModal } from './components/MusicPlayerModal';
+import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
+import { AudioPlayerModal } from './components/AudioPlayerModal';
+import { FloatingAudioDock } from './components/FloatingAudioDock';
 import { MiniBrowserProvider } from './context/MiniBrowserContext';
 import { MiniGoogleBrowserModal } from './components/MiniGoogleBrowserModal';
 import { GoogleDriveModal } from './components/GoogleDriveModal';
@@ -66,6 +70,22 @@ import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
 import workspaceHeroImg from './assets/images/ai_workspace_hero_1790066671032.jpg';
 import apiArchitectureImg from './assets/images/api_architecture_graphic_1790066692425.jpg';
+
+const HeroAudioButton: React.FC = () => {
+  const { openPlayer, isPlaying } = useAudioPlayer();
+  return (
+    <button
+      id="hero-audio-player-btn"
+      onClick={openPlayer}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-650 hover:brightness-110 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+      title="অডিও প্লেয়ার ও সাউন্ড স্টুডিও (ফোকাস সাউন্ড, লোকাল MP3, লাইভ ওয়েভ ভিজুয়ালাইজার)"
+    >
+      <Headphones className={`w-4 h-4 text-purple-200 group-hover:scale-110 transition-transform ${isPlaying ? 'animate-pulse' : ''}`} />
+      <span>অডিও প্লেয়ার ও স্টুডিও</span>
+      {isPlaying && <span className="w-2 h-2 rounded-full bg-pink-400 animate-ping" />}
+    </button>
+  );
+};
 
 const STORAGE_KEY = 'ai_studio_chat_sessions_v1';
 const THEME_KEY = 'ai_studio_theme_mode';
@@ -616,7 +636,9 @@ export default function App() {
           },
         });
 
-        const finalAssistantText = accumulatedText || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি। পুনরায় চেষ্টা করুন।';
+        const finalAssistantText =
+          accumulatedText ||
+          '⚠️ সরাসরি সংযোগ থেকে কোনো উত্তর পাওয়া যায়নি। AI Studio-র Settings > Secrets প্যানেল থেকে আপনার Gemini API Key চেক করুন।';
         updateActiveSession((s) => ({
           ...s,
           updatedAt: Date.now(),
@@ -688,64 +710,100 @@ export default function App() {
       let searchQueries: string[] = [];
 
       let hasReceivedError = false;
+      let streamBuffer = '';
+
+      const processLine = (rawLine: string) => {
+        const line = rawLine.trim();
+        if (!line.startsWith('data: ')) return;
+
+        const dataStr = line.slice(6).trim();
+        if (!dataStr) return;
+
+        let data: any;
+        try {
+          data = JSON.parse(dataStr);
+        } catch {
+          return;
+        }
+
+        if (data.error) {
+          hasReceivedError = true;
+          const errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+          updateActiveSession((s) => ({
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === assistantMsgId
+                ? {
+                    ...m,
+                    text: accumulatedText ? `${accumulatedText}\n\n${errorMsg}` : errorMsg,
+                    isStreaming: false,
+                    error: errorMsg,
+                  }
+                : m
+            ),
+          }));
+          return;
+        }
+
+        if (data.text) {
+          accumulatedText += data.text;
+          updateActiveSession((s) => ({
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === assistantMsgId ? { ...m, text: accumulatedText, error: undefined } : m
+            ),
+          }));
+        }
+        if (data.groundingChunks) {
+          accumulatedGrounding = data.groundingChunks;
+        }
+        if (data.searchQueries) {
+          searchQueries = data.searchQueries;
+        }
+      };
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        streamBuffer += decoder.decode(value, { stream: true });
+        const lines = streamBuffer.split('\n');
+        // keep incomplete tail chunk in buffer
+        streamBuffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6).trim();
-            if (!dataStr) continue;
-
-            let data: any;
-            try {
-              data = JSON.parse(dataStr);
-            } catch {
-              continue;
-            }
-
-            if (data.error) {
-              hasReceivedError = true;
-              updateActiveSession((s) => ({
-                ...s,
-                messages: s.messages.map((m) =>
-                  m.id === assistantMsgId
-                    ? {
-                        ...m,
-                        isStreaming: false,
-                        error: data.error,
-                      }
-                    : m
-                ),
-              }));
-              return;
-            }
-
-            if (data.text) {
-              accumulatedText += data.text;
-              updateActiveSession((s) => ({
-                ...s,
-                messages: s.messages.map((m) =>
-                  m.id === assistantMsgId ? { ...m, text: accumulatedText, error: undefined } : m
-                ),
-              }));
-            }
-            if (data.groundingChunks) {
-              accumulatedGrounding = data.groundingChunks;
-            }
-            if (data.searchQueries) {
-              searchQueries = data.searchQueries;
-            }
-          }
+          processLine(line);
+          if (hasReceivedError) return;
         }
       }
 
+      // Flush any leftover line in buffer
+      if (streamBuffer.trim() && !hasReceivedError) {
+        processLine(streamBuffer);
+        if (hasReceivedError) return;
+      }
+
       if (!hasReceivedError) {
-        const finalAssistantText = accumulatedText || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি। পুনরায় চেষ্টা করুন।';
+        if (!accumulatedText.trim()) {
+          const fallbackDiagnostic =
+            '⚠️ সার্ভার থেকে কোনো টেক্সট পাওয়া যায়নি। আপনার এআই API Key সক্রিয় ও সঠিক রয়েছে কিনা তা AI Studio-র Settings > Secrets প্যানেল থেকে নিশ্চিত করুন এবং পুনরায় চেষ্টা করুন।';
+          updateActiveSession((s) => ({
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === assistantMsgId
+                ? {
+                    ...m,
+                    text: fallbackDiagnostic,
+                    isStreaming: false,
+                    error: fallbackDiagnostic,
+                  }
+                : m
+            ),
+          }));
+          return;
+        }
+
+        const finalAssistantText = accumulatedText;
         // Finish streaming
         updateActiveSession((s) => ({
           ...s,
@@ -755,8 +813,8 @@ export default function App() {
                   ...m,
                   text: finalAssistantText,
                   isStreaming: false,
-                  groundingChunks: accumulatedGrounding,
-                  searchQueries,
+                  groundingChunks: accumulatedGrounding.length > 0 ? accumulatedGrounding : undefined,
+                  searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
                 }
               : m
           ),
@@ -772,14 +830,18 @@ export default function App() {
         console.log('Stream aborted by user');
       } else {
         console.error('Error in chat stream:', err);
+        const friendlyErr =
+          err?.message ||
+          'একটি ত্রুটি ঘটেছে। দয়া করে AI Studio-র Settings > Secrets প্যানেল থেকে আপনার Gemini API Key চেক করুন।';
         updateActiveSession((s) => ({
           ...s,
           messages: s.messages.map((m) =>
             m.id === assistantMsgId
               ? {
                   ...m,
+                  text: friendlyErr,
                   isStreaming: false,
-                  error: err.message || 'একটি ত্রুটি ঘটেছে। দয়া করে সেটিংস থেকে GEMINI_API_KEY চেক করুন।',
+                  error: friendlyErr,
                 }
               : m
           ),
@@ -899,8 +961,9 @@ export default function App() {
 
   return (
     <MusicPlayerProvider>
-      <MiniBrowserProvider>
-        <div className="flex h-screen h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
+      <AudioPlayerProvider>
+        <MiniBrowserProvider>
+          <div className="flex h-screen h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
         {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
@@ -984,6 +1047,9 @@ export default function App() {
 
                 {/* Hero Quick Share & Action Buttons */}
                 <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                  {/* Dedicated Audio Player Launcher */}
+                  <HeroAudioButton />
+
                   <button
                     id="hero-universal-apps-btn"
                     onClick={() => handleOpenUniversalApps('apps')}
@@ -1552,10 +1618,20 @@ export default function App() {
         </div>
       )}
 
+      {/* Dedicated In-App Audio Player & Studio Modal */}
+      <AudioPlayerModal
+        onAskAI={(prompt) => handleSendMessage(prompt)}
+        onOpenShareModal={(config) => handleOpenShareModal(config)}
+      />
+
+      {/* Floating Audio Dock when playing or minimized */}
+      <FloatingAudioDock />
+
       {/* PWA Offline Indicator */}
       <OfflineIndicator />
     </div>
     </MiniBrowserProvider>
+    </AudioPlayerProvider>
   </MusicPlayerProvider>
   );
 }

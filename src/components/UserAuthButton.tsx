@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Cloud, CloudCheck, LogIn, LogOut, User as UserIcon, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Cloud, CloudCheck, LogIn, LogOut, User as UserIcon, RefreshCw, CheckCircle2, Youtube } from 'lucide-react';
 
 interface UserAuthButtonProps {
   onSyncAll?: () => Promise<void>;
@@ -8,7 +8,7 @@ interface UserAuthButtonProps {
 }
 
 export const UserAuthButton: React.FC<UserAuthButtonProps> = ({ onSyncAll, compact = false }) => {
-  const { user, loading, openAuthModal, signOut, isSyncing } = useAuth();
+  const { user, loading, openAuthModal, signOut, isSyncing, youtubeChannel } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [syncedRecently, setSyncedRecently] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -113,6 +113,19 @@ export const UserAuthButton: React.FC<UserAuthButtonProps> = ({ onSyncAll, compa
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             ) : null}
           </div>
+
+          {/* YouTube Channel Info if connected */}
+          {youtubeChannel && (
+            <div className="px-2.5 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <Youtube className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 fill-current" />
+                <div className="min-w-0">
+                  <span className="font-bold text-red-900 dark:text-red-200 block truncate">{youtubeChannel.title}</span>
+                  <span className="text-[10px] text-red-700 dark:text-red-400 block">{youtubeChannel.subscriberCount} সাবস্ক্রাইবার</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Sync Button */}
           {onSyncAll && (

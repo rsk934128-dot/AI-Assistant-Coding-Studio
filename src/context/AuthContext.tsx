@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { 
   auth, 
+  db,
   signInWithGoogle, 
   signInWithEmail as fbSignInWithEmail,
   signUpWithEmail as fbSignUpWithEmail,
   signInAsGuest as fbSignInAsGuest,
   sendPasswordReset as fbSendPasswordReset,
-  signOutUser 
+  signOutUser,
+  YouTubeChannelInfo
 } from '../lib/firebase';
 import { syncGoogleUserToCommunity } from '../lib/communityService';
 
@@ -15,9 +18,11 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   accessToken: string | null;
+  youtubeChannel: YouTubeChannelInfo | null;
   authError: string | null;
   clearAuthError: () => void;
-  signIn: (withDrive?: boolean) => Promise<void>;
+  signIn: (withDrive?: boolean, withYouTube?: boolean) => Promise<void>;
+  signInWithYouTube: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<User>;
   signUpWithEmail: (email: string, password: string, displayName?: string) => Promise<User>;
   signInAsGuest: (displayName?: string) => Promise<User>;
@@ -35,9 +40,11 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   accessToken: null,
+  youtubeChannel: null,
   authError: null,
   clearAuthError: () => {},
   signIn: async () => {},
+  signInWithYouTube: async () => {},
   signInWithEmail: async () => ({} as User),
   signUpWithEmail: async () => ({} as User),
   signInAsGuest: async () => ({} as User),
@@ -55,30 +62,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannelInfo | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setLoading(false);
       if (currentUser) {
         syncGoogleUserToCommunity(currentUser).catch(() => {});
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data?.youtubeChannel) {
+              setYoutubeChannel(data.youtubeChannel);
+            }
+          }
+        } catch {
+          // Continue if offline
+        }
       } else {
         setAccessToken(null);
+        setYoutubeChannel(null);
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  const handleSignIn = async (withDrive = false) => {
+  const handleSignIn = async (withDrive = false, withYouTube = false) => {
     try {
       setAuthError(null);
-      const res = await signInWithGoogle(withDrive);
+      const res = await signInWithGoogle(withDrive, withYouTube);
       if (res?.accessToken) {
         setAccessToken(res.accessToken);
+      }
+      if (res?.youtubeChannel) {
+        setYoutubeChannel(res.youtubeChannel);
       }
       setIsAuthModalOpen(false);
     } catch (error: any) {
@@ -86,6 +109,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuthError(error?.message || 'লগইন ব্যর্থ হয়েছে');
       throw error;
     }
+  };
+
+  const handleSignInWithYouTube = async () => {
+    return handleSignIn(false, true);
   };
 
   const handleSignInWithEmail = async (email: string, pass: string): Promise<User> => {
@@ -170,9 +197,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         loading,
         accessToken,
+        youtubeChannel,
         authError,
         clearAuthError: () => setAuthError(null),
         signIn: handleSignIn,
+        signInWithYouTube: handleSignInWithYouTube,
         signInWithEmail: handleSignInWithEmail,
         signUpWithEmail: handleSignUpWithEmail,
         signInAsGuest: handleSignInAsGuest,

@@ -186,12 +186,30 @@ app.get('/api/tts', async (req, res) => {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function formatFriendlyErrorMessage(err: any): string {
-  let errStr = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
+  let errStr = '';
+  if (typeof err === 'string') {
+    errStr = err;
+  } else if (typeof err?.message === 'string') {
+    errStr = err.message;
+  } else if (typeof err?.error?.message === 'string') {
+    errStr = err.error.message;
+  } else {
+    try {
+      errStr = JSON.stringify(err || '');
+    } catch {
+      errStr = String(err || '');
+    }
+  }
+
+  // Attempt to parse nested JSON
   try {
-    if (typeof err?.message === 'string' && (err.message.startsWith('{') || err.message.startsWith('['))) {
-      const parsed = JSON.parse(err.message);
+    const trimmed = errStr.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const parsed = JSON.parse(trimmed);
       if (parsed?.error?.message) {
         errStr = parsed.error.message;
+      } else if (parsed?.message) {
+        errStr = parsed.message;
       }
     }
   } catch {}
@@ -208,7 +226,9 @@ function formatFriendlyErrorMessage(err: any): string {
   if (
     lower.includes('permission_denied') ||
     lower.includes('403 forbidden') ||
-    lower.includes('code": 403')
+    lower.includes('code": 403') ||
+    err?.status === 403 ||
+    err?.code === 403
   ) {
     return '⚠️ এআই এপিআই অনুমতি সমস্যা (HTTP 403 Permission Denied)। আপনার API Key সাময়িকভাবে ব্লক বা নিষ্ক্রিয় হতে পারে। অনুগ্রহ করে Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি সক্রিয় API Key নিশ্চিত করুন।';
   }
@@ -218,26 +238,28 @@ function formatFriendlyErrorMessage(err: any): string {
     lower.includes('quota') ||
     lower.includes('resource_exhausted') ||
     lower.includes('rate limit') ||
-    lower.includes('exceeded your current quota')
+    lower.includes('exceeded your current quota') ||
+    err?.status === 429
   ) {
-    return 'এআই কোটা সীমা (API Rate Limit / Quota Exceeded 429) সাময়িকভাবে শেষ হয়েছে। Google Gemini ফ্রি টায়ারের প্রতি মিনিটের রিকোয়েস্ট সীমা অতিক্রম করলে এই বার্তা আসে। অনুগ্রহ করে ১০-১৫ সেকেন্ড অপেক্ষা করে নিচের "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন অথবা Google Search অফ করে মেসেজ পাঠান।';
+    return '⚠️ এআই কোটা সীমা (API Rate Limit / Quota Exceeded 429) সাময়িকভাবে শেষ হয়েছে। Google Gemini ফ্রি টায়ারের প্রতি মিনিটের রিকোয়েস্ট সীমা অতিক্রম করলে এই বার্তা আসে। অনুগ্রহ করে ১০-১৫ সেকেন্ড অপেক্ষা করে নিচের "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন অথবা Google Search অফ করে মেসেজ পাঠান।';
   }
 
-  if (lower.includes('503') || lower.includes('unavailable') || lower.includes('high demand') || lower.includes('overloaded')) {
-    return 'গুগল এআই সার্ভার এই মুহূর্তে অতিরিক্ত চাপে রয়েছে (503 Service Unavailable)। স্বয়ংক্রিয়ভাবে বিকল্প মডেলে চেষ্টা করা হচ্ছে... কয়েক সেকেন্ড পর পুনরায় চেষ্টা করুন।';
+  if (lower.includes('503') || lower.includes('unavailable') || lower.includes('high demand') || lower.includes('overloaded') || err?.status === 503) {
+    return '⚠️ গুগল এআই সার্ভার এই মুহূর্তে অতিরিক্ত চাপে রয়েছে (503 Service Unavailable)। স্বয়ংক্রিয়ভাবে বিকল্প মডেলে চেষ্টা করা হচ্ছে... কয়েক সেকেন্ড পর পুনরায় চেষ্টা করুন।';
   }
 
-  if (lower.includes('404') || lower.includes('not_found') || lower.includes('no longer available')) {
-    return 'অনুরোধকৃত এআই মডেলটি এই মুহূর্তে প্রস্তুত নয় (404 Not Found)। সিস্টেম স্বয়ংক্রিয়ভাবে বিকল্প সক্রিয় মডেলে সংযোগ করছে।';
+  if (lower.includes('404') || lower.includes('not_found') || lower.includes('no longer available') || err?.status === 404) {
+    return '⚠️ অনুরোধকৃত এআই মডেলটি এই মুহূর্তে প্রস্তুত নয় (404 Not Found)। সিস্টেম স্বয়ংক্রিয়ভাবে বিকল্প সক্রিয় মডেলে সংযোগ করছে।';
   }
 
   if (
     errStr.includes('API_KEY') ||
     errStr.includes('API key not valid') ||
     errStr.includes('not configured') ||
-    errStr.includes('GEMINI_API_KEY')
+    errStr.includes('GEMINI_API_KEY') ||
+    lower.includes('api_key_invalid')
   ) {
-    return 'Gemini API Key পাওয়া যায়নি বা সঠিক নয়। আপনি যদি অ্যাপটি ক্লাউড/হোস্টিং (যেমন Render, Cloud Run, Vercel, Railway)-এ হোস্ট করে থাকেন, তবে হোস্টিং কন্ট্রোল প্যানেলের Environment Variables সেকশনে "GEMINI_API_KEY" যোগ করেছেন কিনা তা নিশ্চিত করুন।';
+    return '⚠️ Gemini API Key পাওয়া যায়নি বা সঠিক নয়। অনুগ্রহ করে Google AI Studio (Settings > Secrets) অথবা হোস্টিং কন্ট্রোল প্যানেলের Environment Variables সেকশনে "GEMINI_API_KEY" যোগ করেছেন কিনা তা নিশ্চিত করুন।';
   }
 
   return errStr || 'একটি অপ্রত্যাশিত সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
@@ -687,7 +709,7 @@ When code is requested, provide clean, idiomatic, runnable code with clear comme
     } catch (streamIterError: any) {
       console.warn('Error during stream chunk iteration:', streamIterError?.message || streamIterError);
       const friendly = formatFriendlyErrorMessage(streamIterError);
-      res.write(`data: ${JSON.stringify({ error: friendly })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: friendly, text: friendly, done: true })}\n\n`);
       res.end();
       return;
     }
@@ -715,10 +737,10 @@ When code is requested, provide clean, idiomatic, runnable code with clear comme
     
     // If headers already sent, write error event
     if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage, text: friendlyErrorMessage, done: true })}\n\n`);
       res.end();
     } else {
-      res.status(500).json({ error: friendlyErrorMessage });
+      res.status(500).json({ error: friendlyErrorMessage, text: friendlyErrorMessage });
     }
   }
 });

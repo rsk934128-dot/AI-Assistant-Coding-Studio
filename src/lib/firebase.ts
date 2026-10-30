@@ -81,6 +81,64 @@ googleDriveProvider.setCustomParameters({
   access_type: 'offline',
 });
 
+// YouTube Google Auth Provider (requested for YouTube channel & media library integration)
+export const YOUTUBE_SCOPES = [
+  'https://www.googleapis.com/auth/youtube.readonly',
+];
+
+export const googleYouTubeProvider = new GoogleAuthProvider();
+YOUTUBE_SCOPES.forEach((scope) => {
+  googleYouTubeProvider.addScope(scope);
+});
+googleYouTubeProvider.setCustomParameters({
+  prompt: 'select_account',
+});
+
+export interface YouTubeChannelInfo {
+  id: string;
+  title: string;
+  customUrl?: string;
+  description?: string;
+  thumbnail?: string;
+  subscriberCount?: string;
+  videoCount?: string;
+  viewCount?: string;
+}
+
+export async function fetchUserYouTubeChannel(token: string): Promise<YouTubeChannelInfo | null> {
+  if (!token) return null;
+  try {
+    const res = await fetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+    if (!res.ok) {
+      return null;
+    }
+    const data = await res.json();
+    const item = data.items?.[0];
+    if (!item) return null;
+    return {
+      id: item.id,
+      title: item.snippet?.title || '',
+      customUrl: item.snippet?.customUrl || '',
+      description: item.snippet?.description || '',
+      thumbnail: item.snippet?.thumbnails?.default?.url || item.snippet?.thumbnails?.medium?.url || '',
+      subscriberCount: item.statistics?.subscriberCount || '0',
+      videoCount: item.statistics?.videoCount || '0',
+      viewCount: item.statistics?.viewCount || '0',
+    };
+  } catch (err) {
+    console.warn('Error fetching YouTube channel:', err);
+    return null;
+  }
+}
+
 // Alias for backwards compatibility
 export const googleProvider = googleAuthProvider;
 
@@ -327,16 +385,38 @@ export async function sendPasswordReset(email: string): Promise<void> {
   }
 }
 
-export async function signInWithGoogle(withDriveScopes = false): Promise<{ user: User; accessToken: string | null }> {
+export async function signInWithGoogle(
+  withDriveScopes = false,
+  withYouTubeScopes = false
+): Promise<{ user: User; accessToken: string | null; youtubeChannel?: YouTubeChannelInfo | null }> {
   try {
-    const provider = withDriveScopes ? googleDriveProvider : googleAuthProvider;
+    let provider = googleAuthProvider;
+    if (withDriveScopes && withYouTubeScopes) {
+      provider = new GoogleAuthProvider();
+      [...DRIVE_SCOPES, ...YOUTUBE_SCOPES].forEach((scope) => provider.addScope(scope));
+      provider.setCustomParameters({ prompt: 'consent', access_type: 'offline' });
+    } else if (withDriveScopes) {
+      provider = googleDriveProvider;
+    } else if (withYouTubeScopes) {
+      provider = googleYouTubeProvider;
+    }
+
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
     
     // Extract OAuth access token from credential and cache in memory
     const credential = GoogleAuthProvider.credentialFromResult(result);
+    let ytInfo: YouTubeChannelInfo | null = null;
+
     if (credential?.accessToken) {
       cachedAccessToken = credential.accessToken;
+      if (withYouTubeScopes) {
+        try {
+          ytInfo = await fetchUserYouTubeChannel(credential.accessToken);
+        } catch {
+          // Continue if YouTube API read fails
+        }
+      }
     }
     
     // Sync user profile to Firestore
@@ -346,7 +426,7 @@ export async function signInWithGoogle(withDriveScopes = false): Promise<{ user:
     try {
       const userDoc = await getDoc(userRef);
       const existingData = userDoc.exists() ? userDoc.data() : null;
-      const profileData = {
+      const profileData: any = {
         id: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'গুগল ব্যবহারকারী',
@@ -354,20 +434,27 @@ export async function signInWithGoogle(withDriveScopes = false): Promise<{ user:
         updatedAt: new Date().toISOString(),
         createdAt: existingData?.createdAt || new Date().toISOString(),
       };
+      if (ytInfo) {
+        profileData.youtubeChannel = ytInfo;
+      }
       await setDoc(userRef, profileData, { merge: true });
 
       // Register into public community users directory for live presence, messaging & calling
-      await setDoc(commUserRef, {
+      const commData: any = {
         id: user.uid,
         displayName: user.displayName || 'গুগল ব্যবহারকারী',
         email: user.email || '',
         photoURL: user.photoURL || '',
         isOnline: true,
         lastActive: Date.now(),
-        role: 'গুগল ভেরিফায়েড অ্যাকাউন্ট',
-        bio: 'প্ল্যাটফর্মে সক্রিয় রিয়েল গুগল অ্যাকাউন্টধারী।',
+        role: ytInfo ? `YouTube ক্রিয়েটর (${ytInfo.title})` : 'গুগল ভেরিফায়েড অ্যাকাউন্ট',
+        bio: ytInfo ? `YouTube Channel: ${ytInfo.title} | ${ytInfo.subscriberCount} Subscribers` : 'প্ল্যাটফর্মে সক্রিয় রিয়েল গুগল অ্যাকাউন্টধারী।',
         joinedAt: Date.now(),
-      }, { merge: true });
+      };
+      if (ytInfo) {
+        commData.youtubeChannel = ytInfo;
+      }
+      await setDoc(commUserRef, commData, { merge: true });
     } catch (err: any) {
       const errStr = (err?.message || String(err)).toLowerCase();
       if (
@@ -382,7 +469,7 @@ export async function signInWithGoogle(withDriveScopes = false): Promise<{ user:
       }
     }
     
-    return { user, accessToken: cachedAccessToken };
+    return { user, accessToken: cachedAccessToken, youtubeChannel: ytInfo };
   } catch (err: unknown) {
     console.error('Sign-in error:', err);
     throw new Error(formatAuthErrorMessage(err));
