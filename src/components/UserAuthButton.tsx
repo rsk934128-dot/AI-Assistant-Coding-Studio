@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Cloud, CloudCheck, LogIn, LogOut, User as UserIcon, RefreshCw, CheckCircle2, Youtube } from 'lucide-react';
+import { Cloud, CloudCheck, LogIn, LogOut, User as UserIcon, RefreshCw, CheckCircle2, Youtube, ShieldCheck } from 'lucide-react';
 
 interface UserAuthButtonProps {
   onSyncAll?: () => Promise<void>;
+  onOpenAdminPanel?: () => void;
   compact?: boolean;
 }
 
-export const UserAuthButton: React.FC<UserAuthButtonProps> = ({ onSyncAll, compact = false }) => {
+export const UserAuthButton: React.FC<UserAuthButtonProps> = ({ onSyncAll, onOpenAdminPanel, compact = false }) => {
   const { user, loading, openAuthModal, signOut, isSyncing, youtubeChannel } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [syncedRecently, setSyncedRecently] = useState(false);
@@ -125,6 +126,21 @@ export const UserAuthButton: React.FC<UserAuthButtonProps> = ({ onSyncAll, compa
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Admin & Quota Dashboard Button */}
+          {onOpenAdminPanel && (
+            <button
+              id="user-open-admin-panel-btn"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenAdminPanel();
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>অ্যাডমিন ও কোটা ড্যাশবোর্ড</span>
+            </button>
           )}
 
           {/* Sync Button */}

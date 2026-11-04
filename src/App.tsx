@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { ProjectMetricsModal } from './components/ProjectMetricsModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
+import { AdminControlPanelModal } from './components/AdminControlPanelModal';
 import { CommunityHubModal } from './components/CommunityHubModal';
 import { AndroidApkReleaseModal } from './components/AndroidApkReleaseModal';
 import { AuthModal } from './components/AuthModal';
@@ -149,6 +150,7 @@ export default function App() {
   const [founderProfileModalOpen, setFounderProfileModalOpen] = useState(false);
   const [metricsModalOpen, setMetricsModalOpen] = useState(false);
   const [paymentGatewayModalOpen, setPaymentGatewayModalOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [androidReleaseModalOpen, setAndroidReleaseModalOpen] = useState(false);
   const [universalAppsModalConfig, setUniversalAppsModalConfig] = useState<{
     isOpen: boolean;
@@ -1005,6 +1007,7 @@ export default function App() {
           onOpenAndroidRelease={() => setAndroidReleaseModalOpen(true)}
           onOpenMetrics={() => setMetricsModalOpen(true)}
           onOpenPaymentGateway={() => setPaymentGatewayModalOpen(true)}
+          onOpenAdminPanel={() => setAdminPanelOpen(true)}
           onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
           onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
           onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
@@ -1626,6 +1629,17 @@ export default function App() {
 
       {/* Floating Audio Dock when playing or minimized */}
       <FloatingAudioDock />
+
+      {/* Admin Control Panel & Enterprise SaaS Hub Modal */}
+      <AdminControlPanelModal
+        isOpen={adminPanelOpen}
+        onClose={() => setAdminPanelOpen(false)}
+        sessions={sessions}
+        onOpenPaymentGateway={() => {
+          setAdminPanelOpen(false);
+          setPaymentGatewayModalOpen(true);
+        }}
+      />
 
       {/* PWA Offline Indicator */}
       <OfflineIndicator />

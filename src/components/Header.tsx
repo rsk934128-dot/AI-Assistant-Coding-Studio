@@ -57,6 +57,7 @@ interface HeaderProps {
   onOpenAndroidRelease?: () => void;
   onOpenMetrics?: () => void;
   onOpenPaymentGateway?: () => void;
+  onOpenAdminPanel?: () => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
   onOpenFounderProfile?: () => void;
@@ -88,6 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAndroidRelease,
   onOpenMetrics,
   onOpenPaymentGateway,
+  onOpenAdminPanel,
   onOpenGoogleDrive,
   onOpenTTSSettings,
   onOpenFounderProfile,
@@ -818,8 +820,21 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
+        {/* Admin & SaaS Quota Control Panel */}
+        {onOpenAdminPanel && (
+          <button
+            id="admin-panel-header-btn"
+            onClick={onOpenAdminPanel}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 transition-all text-xs font-semibold cursor-pointer shadow-xs"
+            title="অ্যাডমিন কন্ট্রোল প্যানেল, টোকেন কোটা ও ৫২-টেস্ট অডিট"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
+            <span className="hidden md:inline">অ্যাডমিন ও কোটা</span>
+          </button>
+        )}
+
         {/* Cloud Sync & Firebase User Auth */}
-        <UserAuthButton onSyncAll={onSyncAll} compact={true} />
+        <UserAuthButton onSyncAll={onSyncAll} onOpenAdminPanel={onOpenAdminPanel} compact={true} />
 
         <button
           id="toggle-dark-mode-btn"

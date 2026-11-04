@@ -15,6 +15,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'sheikhfaridvisa164@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
     function isValidId(id) {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -30,11 +37,12 @@ service cloud.firestore {
     // Entity Validators
     function isValidUserProfile(data, userId) {
       return data.keys().hasAll(['id', 'email', 'createdAt']) &&
-             data.keys().hasOnly(['id', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['id', 'email', 'displayName', 'photoURL', 'isAnonymous', 'createdAt', 'updatedAt', 'youtubeChannel']) &&
              data.id == userId &&
              data.email is string && data.email.size() <= 200 &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 150)) &&
              (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+             (!('isAnonymous' in data) || data.isAnonymous is bool) &&
              ((data.createdAt is string && data.createdAt.size() <= 50) || data.createdAt is number);
     }
 
@@ -63,15 +71,16 @@ service cloud.firestore {
              (!('citations' in data) || (data.citations is list && data.citations.size() <= 50));
     }
 
-    // User profile documents
+    // User profile documents (Zero-Trust PII Isolation: only owner or verified admin can read)
     match /users/{userId} {
-      allow get, list: if true;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
       allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId) &&
                     incoming().id == existing().id;
       allow delete: if isOwner(userId) && isValidId(userId);
 
-      // User private chat sessions
+      // User private chat sessions - strictly isolated to owner
       match /sessions/{sessionId} {
         allow get: if isOwner(userId) && isValidId(sessionId);
         allow list: if isOwner(userId);
@@ -95,17 +104,36 @@ service cloud.firestore {
       }
     }
 
+    // Server-Authoritative Subscription Entitlements (System/Admin write only)
+    match /subscriptions/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Server-Authoritative Usage & Token Meter (System/Admin write only)
+    match /usage/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Admin role directory
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
     // Community Users Directory - public list showing registered Google accounts & presence
     match /community_users/{userId} {
       allow get, list: if true;
-      allow create, update: if true;
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow create, update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // Community Messages (Direct & Group Messages between accounts)
     match /community_messages/{messageId} {
       allow get, list: if true;
-      allow create, update: if true;
+      allow create, update: if isSignedIn();
       allow delete: if isSignedIn();
     }
 
