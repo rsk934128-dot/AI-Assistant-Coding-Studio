@@ -25,7 +25,9 @@ import {
   Mic,
   MicOff,
   PhoneOff,
-  Headphones
+  Headphones,
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { ProjectMetricsModal } from './components/ProjectMetricsModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
@@ -1376,6 +1378,26 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {activeSession.messages.some((m) => m.error && (m.error.includes('লিক') || m.error.includes('leaked') || m.error.includes('বাতিলকৃত'))) && (
+                <div className="mx-4 mt-3 mb-1 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>
+                      <strong>Gemini API Key বাতিল:</strong> গুগল বর্তমান কী-টি বাতিল করেছে। প্রতিবার নতুন মেসেজ পাঠালে এই কারণেই সতর্কবার্তা আসছে।
+                    </span>
+                  </div>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-amber-700 dark:text-amber-300 hover:underline shrink-0"
+                  >
+                    <span>Google AI Studio-তে নতুন কী নিন</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
 
               <div className="divide-y divide-stone-100 dark:divide-stone-800/40">
                 {activeSession.messages.map((message) => (

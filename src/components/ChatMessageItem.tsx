@@ -23,6 +23,7 @@ import {
   X,
   Gauge,
   Music,
+  Key,
   Mail,
   MessageSquare,
   FolderGit2,
@@ -1379,31 +1380,79 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
           {/* Error display if any */}
           {message.error && (
-            <div className="p-3.5 mb-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-center gap-2.5">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-                <span className="leading-relaxed">{message.error}</span>
+            message.error.includes('লিক') || message.error.includes('leaked') || message.error.includes('বাতিলকৃত') ? (
+              <div className="p-4 mb-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-200 shadow-sm space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-500 text-white shrink-0 mt-0.5">
+                    <Key className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm text-amber-900 dark:text-amber-100">
+                        Gemini API Key বাতিল করা হয়েছে
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                        Google Security Block
+                      </span>
+                    </div>
+                    <div className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed whitespace-pre-line">
+                      {message.error}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2.5 border-t border-amber-200/80 dark:border-amber-900/60 flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                    💡 <strong>সমাধান:</strong> AI Studio-র <strong>Settings &gt; Secrets</strong>-এ নতুন কী দিন।
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="https://aistudio.google.com/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-xs transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Google AI Studio API Key খুলুন</span>
+                    </a>
+                    {onOpenHostingGuide && (
+                      <button
+                        onClick={onOpenHostingGuide}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 font-medium text-xs transition-colors cursor-pointer"
+                      >
+                        <span>ডায়াগনস্টিকস</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-                {onOpenHostingGuide && (
-                  <button
-                    onClick={onOpenHostingGuide}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 font-medium text-xs transition-colors cursor-pointer"
-                  >
-                    <span>হোস্টিং গাইড</span>
-                  </button>
-                )}
-                {onRetry && (
-                  <button
-                    onClick={onRetry}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-xs transition-colors cursor-pointer"
-                  >
-                    <RotateCw className="w-3.5 h-3.5" />
-                    <span>পুনরায় চেষ্টা করুন</span>
-                  </button>
-                )}
+            ) : (
+              <div className="p-3.5 mb-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span className="leading-relaxed">{message.error}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                  {onOpenHostingGuide && (
+                    <button
+                      onClick={onOpenHostingGuide}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 font-medium text-xs transition-colors cursor-pointer"
+                    >
+                      <span>হোস্টিং গাইড</span>
+                    </button>
+                  )}
+                  {onRetry && (
+                    <button
+                      onClick={onRetry}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-xs transition-colors cursor-pointer"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      <span>পুনরায় চেষ্টা করুন</span>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )
           )}
 
           {/* Text Content / Edit Box */}

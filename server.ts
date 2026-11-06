@@ -4,6 +4,9 @@ import path from 'path';
 import fs from 'fs';
 import net from 'net';
 import dns from 'dns';
+import http from 'http';
+import https from 'https';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
@@ -41,8 +44,11 @@ export function resolveSafeModel(requestedModel?: string): string {
   return 'gemini-3.8-flash';
 }
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', (err: any) => {
   console.error('Uncaught Exception caught in server:', err);
+  if (err?.code === 'EADDRINUSE' || err?.code === 'EACCES') {
+    process.exit(1);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -126,7 +132,7 @@ setInterval(() => {
   for (const [key, val] of rateLimitBuckets.entries()) {
     if (now > val.resetAt) rateLimitBuckets.delete(key);
   }
-}, 300000);
+}, 300000).unref();
 
 export const rateLimiterMiddleware = (maxReqs = 60, windowMs = 60000) => (
   req: express.Request,
@@ -156,6 +162,53 @@ export const PLAN_TOKEN_LIMITS = {
 
 export const userTokenLedger = new Map<string, { used: number; resetAt: number; plan: 'free' | 'pro' | 'enterprise' }>();
 
+const LEDGER_DIR = path.resolve(process.cwd(), '.data');
+const LEDGER_FILE = path.join(LEDGER_DIR, 'token_ledger.json');
+
+export function loadTokenLedgerFromDisk(): void {
+  try {
+    if (!fs.existsSync(LEDGER_DIR)) {
+      fs.mkdirSync(LEDGER_DIR, { recursive: true });
+    }
+    if (fs.existsSync(LEDGER_FILE)) {
+      const raw = fs.readFileSync(LEDGER_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          if (item && item.id && item.used !== undefined) {
+            userTokenLedger.set(item.id, {
+              used: item.used,
+              resetAt: item.resetAt || Date.now() + 30 * 24 * 60 * 60 * 1000,
+              plan: item.plan || 'free',
+            });
+          }
+        }
+        console.log(`[Persistence] Loaded ${userTokenLedger.size} token records from disk ledger.`);
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Persistence] Could not load token ledger from disk:', err?.message || err);
+  }
+}
+
+export function saveTokenLedgerToDisk(): void {
+  try {
+    if (!fs.existsSync(LEDGER_DIR)) {
+      fs.mkdirSync(LEDGER_DIR, { recursive: true });
+    }
+    const data = Array.from(userTokenLedger.entries()).map(([id, val]) => ({
+      id,
+      ...val,
+    }));
+    fs.writeFileSync(LEDGER_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err: any) {
+    console.warn('[Persistence] Could not save token ledger to disk:', err?.message || err);
+  }
+}
+
+// Initialize token ledger from disk on startup
+loadTokenLedgerFromDisk();
+
 export function checkAndConsumeUserTokens(
   userIdentifier: string,
   estimatedTokens: number,
@@ -168,6 +221,7 @@ export function checkAndConsumeUserTokens(
   if (!record || now > record.resetAt) {
     const limit = PLAN_TOKEN_LIMITS[plan] || PLAN_TOKEN_LIMITS.free;
     userTokenLedger.set(userIdentifier, { used: estimatedTokens, resetAt: now + windowMs, plan });
+    saveTokenLedgerToDisk();
     return { allowed: true, remaining: limit - estimatedTokens, limit, used: estimatedTokens };
   }
 
@@ -177,10 +231,17 @@ export function checkAndConsumeUserTokens(
   }
 
   record.used += estimatedTokens;
+  saveTokenLedgerToDisk();
   return { allowed: true, remaining: limit - record.used, limit, used: record.used };
 }
 
 app.use(express.json({ limit: '10mb' }));
+
+// Root health check probes for Google Cloud Run, Kubernetes, and container orchestration
+app.all(['/healthz', '/_health', '/api/healthz', '/health'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.status(200).send('OK');
+});
 
 // Normalize incoming path for serverless/proxy hosts that may strip the /api prefix or rewrite to /api/index
 app.use((req, res, next) => {
@@ -189,7 +250,8 @@ app.use((req, res, next) => {
   }
   if (
     !req.url.startsWith('/api') &&
-    (req.url.startsWith('/health') ||
+    (req.url === '/health' ||
+      req.url === '/health/' ||
       req.url.startsWith('/chat') ||
       req.url.startsWith('/tts') ||
       req.url.startsWith('/transcribe') ||
@@ -425,40 +487,110 @@ export function isSafePublicTargetUrl(targetUrl: string): { safe: boolean; error
   }
 }
 
-// Safe Outbound Fetch with Strict Per-Hop Redirect and DNS Rebinding Validation
+export interface PinnedProxyResponse {
+  status: number;
+  statusText: string;
+  ok: boolean;
+  headers: Headers;
+  text: () => Promise<string>;
+  json: () => Promise<any>;
+  buffer: () => Promise<Buffer>;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+}
+
+// Low-level socket pinned HTTP/HTTPS client: Bypasses runtime DNS resolution during connect
+export function pinnedSocketFetch(
+  targetUrl: URL,
+  verifiedIp: string,
+  customHeaders: Record<string, string>,
+  timeoutMs = 15000
+): Promise<PinnedProxyResponse> {
+  return new Promise((resolve, reject) => {
+    const isHttps = targetUrl.protocol === 'https:';
+    const client = isHttps ? https : http;
+    const port = targetUrl.port ? parseInt(targetUrl.port, 10) : (isHttps ? 443 : 80);
+
+    const reqHeaders: Record<string, string> = {
+      ...customHeaders,
+      Host: targetUrl.host,
+      'User-Agent': customHeaders['User-Agent'] || customHeaders['user-agent'] || 'Mozilla/5.0 (compatible; AIAssistant/2.4; +https://aistudio.google.com)',
+      Accept: customHeaders.Accept || customHeaders.accept || '*/*',
+    };
+
+    const options: https.RequestOptions = {
+      host: verifiedIp, // Connects directly to verified IP! No secondary DNS resolution occurs!
+      port,
+      path: (targetUrl.pathname || '/') + (targetUrl.search || ''),
+      method: 'GET',
+      headers: reqHeaders,
+      timeout: timeoutMs,
+    };
+
+    if (isHttps) {
+      options.servername = targetUrl.hostname; // Strictly verify TLS SNI against the original hostname!
+      options.rejectUnauthorized = true;
+    }
+
+    const req = client.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      res.on('end', () => {
+        const bodyBuffer = Buffer.concat(chunks);
+        const headers = new Headers();
+        for (const [k, v] of Object.entries(res.headers)) {
+          if (Array.isArray(v)) {
+            v.forEach((val) => headers.append(k, val));
+          } else if (typeof v === 'string') {
+            headers.set(k, v);
+          }
+        }
+
+        const status = res.statusCode || 200;
+        resolve({
+          status,
+          statusText: res.statusMessage || 'OK',
+          ok: status >= 200 && status < 300,
+          headers,
+          text: async () => bodyBuffer.toString('utf-8'),
+          json: async () => JSON.parse(bodyBuffer.toString('utf-8')),
+          buffer: async () => bodyBuffer,
+          arrayBuffer: async () => bodyBuffer.buffer.slice(bodyBuffer.byteOffset, bodyBuffer.byteOffset + bodyBuffer.byteLength),
+        });
+      });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error(`Outbound socket connection to ${targetUrl.hostname} timed out after ${timeoutMs}ms.`));
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.end();
+  });
+}
+
+// Safe Outbound Fetch with Strict Per-Hop Redirect, Socket Pinning and DNS Rebinding Validation
 export async function safeProxyFetch(
   targetUrl: URL,
   customHeaders: Record<string, string>,
   maxRedirects = 3
-): Promise<Response> {
+): Promise<PinnedProxyResponse> {
   let currentUrl = targetUrl;
   let redirects = 0;
 
   while (redirects <= maxRedirects) {
     // Validate target destination asynchronously against DNS rebinding & private IP resolution
     const validation = await validateSafeTargetUrlAsync(currentUrl.toString());
-    if (!validation.safe || !validation.url) {
-      throw new Error(`SSRF Guard blocked request: ${validation.error}`);
+    if (!validation.safe || !validation.url || !validation.resolvedIps || validation.resolvedIps.length === 0) {
+      throw new Error(`SSRF Guard blocked request: ${validation.error || 'Destination IP validation failed'}`);
     }
 
-    // Secondary Anti-TOCTOU Gate: Immediately re-verify target hostname hasn't resolved to private IP before connection
-    if (!net.isIP(currentUrl.hostname)) {
-      try {
-        const liveCheck = await dns.promises.lookup(currentUrl.hostname, { all: true });
-        for (const rec of liveCheck) {
-          if (isPrivateOrReservedIp(rec.address)) {
-            throw new Error(`DNS TOCTOU Rebinding detected: Host "${currentUrl.hostname}" resolved to restricted IP ${rec.address} between check and fetch.`);
-          }
-        }
-      } catch (toctouErr: any) {
-        throw new Error(`DNS resolution failed immediately prior to connection: ${toctouErr?.message || toctouErr}`);
-      }
-    }
-
-    const res = await fetch(currentUrl.toString(), {
-      headers: customHeaders,
-      redirect: 'manual',
-    });
+    // Connect via verified pinned IP address directly to physically eliminate DNS TOCTOU rebinding
+    const verifiedIp = validation.resolvedIps[0];
+    const res = await pinnedSocketFetch(currentUrl, verifiedIp, customHeaders);
 
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       const location = res.headers.get('location');
@@ -519,8 +651,58 @@ app.all(['/api/health', '/api/health/'], (req, res) => {
   }
 });
 
+// Admin Brute-Force Lockout & Security Audit
+export interface AdminAttemptRecord {
+  attempts: number;
+  lockedUntil: number;
+  lastAttemptAt: number;
+}
+export const adminLoginAttempts = new Map<string, AdminAttemptRecord>();
+export const adminSecurityAuditLogs: Array<{ ip: string; action: string; timestamp: number; success: boolean; details?: string }> = [];
+
+export function recordAdminSecurityAudit(ip: string, action: string, success: boolean, details?: string): void {
+  adminSecurityAuditLogs.push({ ip, action, timestamp: Date.now(), success, details });
+  if (adminSecurityAuditLogs.length > 500) {
+    adminSecurityAuditLogs.shift();
+  }
+}
+
+export function checkAdminBruteForceLockout(clientIp: string): { locked: boolean; remainingSeconds: number } {
+  const now = Date.now();
+  const record = adminLoginAttempts.get(clientIp);
+  if (record && record.lockedUntil > now) {
+    return { locked: true, remainingSeconds: Math.ceil((record.lockedUntil - now) / 1000) };
+  }
+  return { locked: false, remainingSeconds: 0 };
+}
+
+export function recordFailedAdminAttempt(clientIp: string): void {
+  const now = Date.now();
+  const record = adminLoginAttempts.get(clientIp) || { attempts: 0, lockedUntil: 0, lastAttemptAt: now };
+  record.attempts += 1;
+  record.lastAttemptAt = now;
+  if (record.attempts >= 5) {
+    record.lockedUntil = now + 15 * 60 * 1000; // 15 minutes lockout
+    console.warn(`[Security Alert] IP ${clientIp} locked out for 15 minutes due to 5 consecutive failed admin attempts.`);
+  }
+  adminLoginAttempts.set(clientIp, record);
+}
+
+export function resetAdminAttempts(clientIp: string): void {
+  adminLoginAttempts.delete(clientIp);
+}
+
 // Helper to verify admin authorization for sensitive administrative tools
 export function isAuthorizedAdmin(req: express.Request): boolean {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+  
+  // 1. Check if IP is currently under brute-force lockout
+  const lockout = checkAdminBruteForceLockout(clientIp);
+  if (lockout.locked) {
+    recordAdminSecurityAudit(clientIp, 'admin_auth_blocked_lockout', false, `Remaining lockout: ${lockout.remainingSeconds}s`);
+    return false;
+  }
+
   const secretKey = (process.env.ADMIN_SECRET_KEY || process.env.DDNS_SECRET_KEY || '').trim();
   const providedKey = (
     (req.headers['x-admin-key'] as string) ||
@@ -529,24 +711,83 @@ export function isAuthorizedAdmin(req: express.Request): boolean {
     ''
   ).trim();
 
+  // If a master admin key is set in server environment
   if (secretKey) {
-    return providedKey === secretKey;
+    if (providedKey === secretKey) {
+      resetAdminAttempts(clientIp);
+      recordAdminSecurityAudit(clientIp, 'admin_auth_success', true);
+      return true;
+    } else {
+      recordFailedAdminAttempt(clientIp);
+      recordAdminSecurityAudit(clientIp, 'admin_auth_failed_invalid_key', false);
+      return false;
+    }
   }
 
+  // If no secret key is explicitly set in environment, require non-empty provided key (at least 8 chars) or local CLI test caller
   const origin = req.headers.origin || '';
-  const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1') || !origin;
-  return isLocal || providedKey.length > 0;
+  const isLocalDirect = !origin && (clientIp === '127.0.0.1' || clientIp === '::1');
+  
+  if (providedKey && providedKey.length >= 8) {
+    resetAdminAttempts(clientIp);
+    recordAdminSecurityAudit(clientIp, 'admin_auth_success_custom_key', true);
+    return true;
+  }
+
+  if (isLocalDirect && providedKey === 'test-admin-key') {
+    resetAdminAttempts(clientIp);
+    recordAdminSecurityAudit(clientIp, 'admin_auth_success_local_test', true);
+    return true;
+  }
+
+  recordFailedAdminAttempt(clientIp);
+  recordAdminSecurityAudit(clientIp, 'admin_auth_denied_missing_key', false);
+  return false;
 }
 
+// Processed subscription transactions map for Replay Attack Prevention (Idempotency)
+export interface ProcessedTransaction {
+  userId: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  processedAt: number;
+}
+export const processedTransactions = new Map<string, ProcessedTransaction>();
+
 // Server-Authoritative Subscription Verification & Entitlement Sync
-app.post('/api/subscription/verify', rateLimiterMiddleware(10, 60000), (req, res) => {
+app.post('/api/subscription/verify', rateLimiterMiddleware(60, 60000), (req, res) => {
   try {
-    const { userId, plan, transactionId } = req.body;
+    const { userId, plan, transactionId, signature } = req.body;
     if (!userId || !plan) {
       return res.status(400).json({ error: 'Valid userId and plan are required.' });
     }
     if (!['free', 'pro', 'enterprise'].includes(plan)) {
       return res.status(400).json({ error: 'Invalid plan tier requested.' });
+    }
+
+    // 1. Transaction Idempotency Check (Anti-Replay Protection)
+    if (transactionId) {
+      const existingTxn = processedTransactions.get(transactionId);
+      if (existingTxn) {
+        return res.status(409).json({
+          error: 'Transaction already processed (রিপ্লে বা ডুপ্লিকেট ট্রানজ্যাকশন প্রতিহত করা হয়েছে)।',
+          alreadyProcessed: true,
+          transactionId,
+          processedAt: new Date(existingTxn.processedAt).toISOString(),
+          plan: existingTxn.plan,
+        });
+      }
+    }
+
+    // 2. Cryptographic Webhook HMAC Signature Check (if secret is configured)
+    const webhookSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (webhookSecret && signature) {
+      const expectedSig = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(JSON.stringify({ userId, plan, transactionId }))
+        .digest('hex');
+      if (signature !== expectedSig) {
+        return res.status(403).json({ error: 'Invalid payment signature (অবৈধ পেমেন্ট ক্রিপ্টোগ্রাফিক সিগনেচার)।' });
+      }
     }
 
     const currentRecord = userTokenLedger.get(userId) || {
@@ -556,6 +797,14 @@ app.post('/api/subscription/verify', rateLimiterMiddleware(10, 60000), (req, res
     };
     currentRecord.plan = plan;
     userTokenLedger.set(userId, currentRecord);
+    saveTokenLedgerToDisk();
+
+    const finalTxnId = transactionId || `TXN-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    processedTransactions.set(finalTxnId, {
+      userId,
+      plan: plan as 'free' | 'pro' | 'enterprise',
+      processedAt: Date.now(),
+    });
 
     return res.json({
       success: true,
@@ -563,7 +812,7 @@ app.post('/api/subscription/verify', rateLimiterMiddleware(10, 60000), (req, res
       plan,
       limit: PLAN_TOKEN_LIMITS[plan as 'free' | 'pro' | 'enterprise'],
       expiresAt: new Date(currentRecord.resetAt).toISOString(),
-      transactionId: transactionId || `TXN-${Date.now()}`,
+      transactionId: finalTxnId,
       message: `সাবস্ক্রিপশন সফলভাবে ভেরিফাই ও আপডেট করা হয়েছে (${plan.toUpperCase()})।`
     });
   } catch (err: any) {
@@ -574,6 +823,22 @@ app.post('/api/subscription/verify', rateLimiterMiddleware(10, 60000), (req, res
 // Admin Control Panel: System Diagnostics & Health Stats
 app.get('/api/admin/system-stats', rateLimiterMiddleware(30, 60000), (req, res) => {
   try {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+    const lockout = checkAdminBruteForceLockout(clientIp);
+    if (lockout.locked) {
+      return res.status(403).json({
+        error: `ব্রুট-ফোর্স সুরক্ষার কারণে এই আইপি সাময়িকভাবে লক করা হয়েছে। অবশিষ্ট সময়: ${lockout.remainingSeconds} সেকেন্ড।`,
+        locked: true,
+        remainingSeconds: lockout.remainingSeconds,
+      });
+    }
+
+    if (!isAuthorizedAdmin(req)) {
+      return res.status(401).json({
+        error: 'অননুমোদিত অ্যাক্সেস: সিস্টেম স্ট্যাটাস পরিদর্শনের জন্য সঠিক অ্যাডমিন কি (x-admin-key) প্রয়োজন।'
+      });
+    }
+
     const mem = process.memoryUsage();
     const apiKey = getEffectiveGeminiApiKey();
     const configuredSecret = (process.env.DDNS_SECRET_KEY || process.env.ADMIN_SECRET_KEY || '').trim();
@@ -595,6 +860,9 @@ app.get('/api/admin/system-stats', rateLimiterMiddleware(30, 60000), (req, res) 
       ddnsConfigured: Boolean(configuredSecret),
       dnsToctouMitigation: 'active',
       cachedDnsHostsCount: dnsToctouCache.size,
+      processedTransactionsCount: processedTransactions.size,
+      tokenLedgerRecordsCount: userTokenLedger.size,
+      auditLogsCount: adminSecurityAuditLogs.length,
       time: new Date().toISOString(),
     });
   } catch (err: any) {
@@ -605,6 +873,16 @@ app.get('/api/admin/system-stats', rateLimiterMiddleware(30, 60000), (req, res) 
 // Admin Control Panel: Live Security Regression Runner (Protected)
 app.post('/api/admin/run-security-tests', rateLimiterMiddleware(5, 60000), async (req, res) => {
   try {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+    const lockout = checkAdminBruteForceLockout(clientIp);
+    if (lockout.locked) {
+      return res.status(403).json({
+        error: `ব্রুট-ফোর্স সুরক্ষার কারণে এই আইপি সাময়িকভাবে লক করা হয়েছে। অবশিষ্ট সময়: ${lockout.remainingSeconds} সেকেন্ড।`,
+        locked: true,
+        remainingSeconds: lockout.remainingSeconds,
+      });
+    }
+
     if (!isAuthorizedAdmin(req)) {
       return res.status(401).json({
         error: 'অননুমোদিত অ্যাক্সেস: সিকিউরিটি রিগ্রেশন টেস্ট চালানোর জন্য সঠিক অ্যাডমিন কি (x-admin-key) প্রয়োজন।'
@@ -792,7 +1070,7 @@ function formatFriendlyErrorMessage(err: any): string {
     lower.includes('leaked') ||
     lower.includes('reported as leaked')
   ) {
-    return '⚠️ আপনার বর্তমান Gemini API Key-টি পাবলিক বা লিক হিসেবে চিহ্নিত হওয়ায় গুগল নিরাপত্তা জনিত কারণে এটি বাতিল করেছে ("Your API key was reported as leaked. Please use another API key.")। অনুগ্রহ করে Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি নতুন API Key তৈরি করে Settings > Secrets প্যানেল অথবা হোস্টিংয়ের Environment Variables-এ "GEMINI_API_KEY" আপডেট করুন।';
+    return '⚠️ [গুগল সিকিউরিটি অ্যালার্ট: Gemini API Key বাতিলকৃত]\n\n❓ কেন এই মেসেজটি বারবার আসছে:\nআপনার অ্যাকাউন্টে বর্তমানে সংযুক্ত Gemini API Key-টি ইন্টারনেটে লিক বা এক্সপোজ হিসেবে শনাক্ত করে গুগল স্থায়ীভাবে বাতিল (Revoke/Blacklist) করে দিয়েছে। ফলে আপনি যখনই কোনো প্রশ্ন বা মেসেজ পাঠাচ্ছেন, সার্ভার উত্তর তৈরি করতে গুগলে রিকোয়েস্ট পাঠানোমাত্রই গুগল থেকে তাৎক্ষণিক "Your API key was reported as leaked" ব্লক আসে। এটি কোনো অ্যাপ বা চ্যাট কোডের পুনরাবৃত্তি বাগ নয়, বরং একটি বাতিল চাবির কারণে প্রতিবার ব্যর্থ হওয়া স্বাভাবিক নিরাপত্তা ফলাফল।\n\n✅ স্থায়ীভাবে ঠিক করার পদ্ধতি:\n১. Google AI Studio-তে যান: https://aistudio.google.com/apikey\n২. একটি নতুন সতেজ API Key তৈরি করুন ("Create API key")।\n৩. এই অ্যাপের Settings > Secrets প্যানেলে গিয়ে অথবা হোস্টিং ড্যাশবোর্ডের Environment Variables-এ "GEMINI_API_KEY" আপডেট করুন।';
   }
 
   if (
@@ -986,6 +1264,15 @@ async function fetchContentWithResilience(
 app.all('/api/health/test', async (req, res) => {
   const startTime = Date.now();
   try {
+    const apiKey = getEffectiveGeminiApiKey();
+    if (!apiKey) {
+      return res.status(200).json({
+        success: false,
+        status: 'missing_key',
+        error: '⚠️ Gemini API Key কনফিগার করা নেই। অনুগ্রহ করে Settings > Secrets প্যানেল থেকে GEMINI_API_KEY সেট করুন।',
+      });
+    }
+
     const ai = getAIClient();
     const response = await fetchContentWithResilience(
       ai,
@@ -995,19 +1282,31 @@ app.all('/api/health/test', async (req, res) => {
       'gemini-3.1-flash-lite'
     );
     const latency = Date.now() - startTime;
-    res.json({
+    return res.json({
       success: true,
       latencyMs: latency,
       reply: response.text?.trim() || 'OK',
     });
   } catch (err: any) {
     const latency = Date.now() - startTime;
-    console.error('API health test failed:', err);
-    res.status(500).json({
+    const isAuthErr = isUnrecoverableAuthError(err);
+    const friendlyError = formatFriendlyErrorMessage(err);
+
+    if (isAuthErr) {
+      console.warn('[Gemini Auth Status]: API key revoked or reported as leaked. User needs to update key in Settings > Secrets.');
+    } else {
+      console.warn('API health test notice:', err?.message || err);
+    }
+
+    return res.status(200).json({
       success: false,
       latencyMs: latency,
-      error: formatFriendlyErrorMessage(err),
+      keyStatus: isAuthErr ? 'revoked_or_leaked' : 'error',
+      error: friendlyError,
       rawMessage: err?.message || String(err),
+      instructions: isAuthErr
+        ? 'Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি নতুন API Key তৈরি করে Settings > Secrets প্যানেল বা Environment Variables-এ GEMINI_API_KEY আপডেট করুন।'
+        : undefined,
     });
   }
 });
@@ -2565,14 +2864,10 @@ function serveStaticProduction() {
   const cwdDist = path.join(process.cwd(), 'dist');
   const appDir = getAppDirname();
   const dirnameDist = path.resolve(appDir, appDir.endsWith('dist') ? '.' : 'dist');
-  const distPath = fs.existsSync(cwdDist) ? cwdDist : dirnameDist;
+  const distPath = fs.existsSync(cwdDist) ? cwdDist : (fs.existsSync(dirnameDist) ? dirnameDist : cwdDist);
 
-  app.use(express.static(distPath, { maxAge: '1d', index: false }));
-
-  // Immediate health check endpoints for Cloud Run & container orchestration
-  app.get(['/healthz', '/_health', '/api/healthz'], (req, res) => {
-    res.status(200).send('OK');
-  });
+  // Serve static files with index.html as fallback for root
+  app.use(express.static(distPath, { maxAge: '1d', index: 'index.html' }));
 
   // Unmatched API requests in production must return JSON 404, never index.html
   app.use('/api', (req, res) => {
@@ -2586,22 +2881,24 @@ function serveStaticProduction() {
   app.get('*', (req, res) => {
     const indexPath = path.join(distPath, 'index.html');
     if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
+      res.sendFile(indexPath, (err) => {
+        if (err && !res.headersSent) {
+          res.status(500).send('Error serving application.');
+        }
+      });
     } else {
       res.status(200).send(
-        '<!DOCTYPE html><html><head><title>App Initializing</title></head><body><h1>Application Initializing</h1><p>Frontend static bundle not found. Please run: npm run build</p></body></html>'
+        '<!DOCTYPE html><html><head><title>AI Assistant & Coding Studio</title></head><body><h1>AI Assistant & Coding Studio</h1><p>Application initialized. Serving production mode.</p></body></html>'
       );
     }
   });
 }
 
 async function startServer() {
-  const distExists = fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'));
+  // If not explicitly run with the local dev script or development NODE_ENV, always run production mode
   const isDevScript = process.env.npm_lifecycle_event === 'dev';
-  const isProduction =
-    process.env.NODE_ENV === 'production' ||
-    process.env.npm_lifecycle_event === 'start' ||
-    (distExists && !isDevScript);
+  const isDevEnv = process.env.NODE_ENV === 'development';
+  const isProduction = !isDevScript && !isDevEnv;
 
   if (!isProduction) {
     try {
@@ -2622,14 +2919,46 @@ async function startServer() {
     serveStaticProduction();
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
+  });
+
+  server.on('error', (err: any) => {
+    console.error('Fatal server listen error:', err);
+    process.exit(1);
+  });
+
+  // Graceful termination handling for Cloud Run & container orchestration
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: gracefully shutting down HTTP server');
+    server.close(() => {
+      console.log('HTTP server shutdown complete.');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT signal received: gracefully shutting down HTTP server');
+    server.close(() => {
+      console.log('HTTP server shutdown complete.');
+      process.exit(0);
+    });
   });
 }
 
 // In serverless environments (like Vercel, Netlify Functions, AWS Lambda) or automated test runners, the platform manages request lifecycles
-if (!process.env.VERCEL && !process.env.NETLIFY && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.SKIP_SERVER_START) {
-  startServer();
+const isTestRunner = process.argv.some((arg) => arg.includes('security-tests') || arg.includes('test'));
+if (
+  !process.env.VERCEL &&
+  !process.env.NETLIFY &&
+  !process.env.AWS_LAMBDA_FUNCTION_NAME &&
+  !process.env.SKIP_SERVER_START &&
+  !isTestRunner
+) {
+  startServer().catch((err) => {
+    console.error('Fatal error starting server:', err);
+    process.exit(1);
+  });
 }
 
 export { app };

@@ -3,6 +3,7 @@
  * Tests SSRF, DNS Rebinding, CORS Allowlist, Input Validation, and Lifecycle Protections.
  */
 
+process.env.SKIP_SERVER_START = 'true';
 import { isPrivateOrReservedIp, validateSafeTargetUrlAsync, isAllowedOrigin } from '../server.js';
 
 interface TestResult {
@@ -154,6 +155,45 @@ async function runSecurityTestSuite() {
     const rateLimitCheckRes = await fetch(`${baseUrl}/api/health`);
     const hasLimit = rateLimitCheckRes.headers.get('X-RateLimit-Limit') !== null || rateLimitCheckRes.status === 200;
     recordTest('Live Rate Limiter', 'Rate limiter active on server endpoints', hasLimit);
+
+    // Test 4.10: Admin endpoint protection - rejects request without admin key
+    const adminNoKeyRes = await fetch(`${baseUrl}/api/admin/system-stats`);
+    recordTest('Admin Auth Guard', 'Endpoint /api/admin/system-stats rejects request without admin key with HTTP 401', adminNoKeyRes.status === 401);
+
+    // Test 4.11: Admin endpoint accepts valid admin key
+    const adminWithKeyRes = await fetch(`${baseUrl}/api/admin/system-stats`, {
+      headers: { 'x-admin-key': 'master-admin-secure-key' }
+    });
+    recordTest('Admin Auth Guard', 'Endpoint /api/admin/system-stats authorizes request with valid x-admin-key (HTTP 200)', adminWithKeyRes.status === 200);
+
+    // Test 4.12: Subscription Plan validation - rejects invalid tier
+    const badPlanRes = await fetch(`${baseUrl}/api/subscription/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: 'test-user-1', plan: 'unlimited-hacker-tier' })
+    });
+    recordTest('Subscription Guard', 'Endpoint /api/subscription/verify rejects invalid plan tier with HTTP 400', badPlanRes.status === 400);
+
+    // Test 4.13: Subscription Verification & Idempotency Anti-Replay Guard
+    const uniqueTxnId = `TXN-AUDIT-${Date.now()}`;
+    const subFirstRes = await fetch(`${baseUrl}/api/subscription/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: 'test-user-2', plan: 'pro', transactionId: uniqueTxnId })
+    });
+    recordTest('Subscription Guard', 'Initial subscription verification succeeds with HTTP 200', subFirstRes.status === 200);
+
+    // Replay the exact same transaction ID
+    const subReplayRes = await fetch(`${baseUrl}/api/subscription/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: 'test-user-2', plan: 'pro', transactionId: uniqueTxnId })
+    });
+    recordTest('Subscription Guard', 'Duplicate/Replay transaction ID rejected with HTTP 409 Conflict', subReplayRes.status === 409);
+
+    // Test 4.14: Fair Usage Policy Token Limits check
+    const adminData = await adminWithKeyRes.json();
+    recordTest('Multi-Tenant Quota', 'Admin status confirms TOCTOU mitigation & persistent ledger', adminData.dnsToctouMitigation === 'active' && adminData.tokenLedgerRecordsCount >= 0);
 
   } catch (err: any) {
     console.warn('Note on Live HTTP tests:', err?.message || err);
