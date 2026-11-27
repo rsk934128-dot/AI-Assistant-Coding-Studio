@@ -21,8 +21,19 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { ApiStatusInfo } from '../types';
-import { markApiKeyValidationHealthy, markApiKeyValidationError } from '../lib/gemini';
-import { getApiBaseUrl, isNativeMobileApp, resolveApiUrl } from '../lib/apiBase';
+import {
+  invalidateApiKeyValidationCache,
+  markApiKeyValidationHealthy,
+  markApiKeyValidationError,
+} from '../lib/gemini';
+import {
+  getApiBaseUrl,
+  getCustomApiBaseUrl,
+  isAiStudioAuthGatedUrl,
+  isNativeMobileApp,
+  resolveApiUrl,
+  setCustomApiBaseUrl,
+} from '../lib/apiBase';
 
 interface HealthData {
   status: string;
@@ -58,6 +69,18 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
   const [healthError, setHealthError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestResult>({ loading: false });
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
+  const [backendUrlInput, setBackendUrlInput] = useState<string>(() => getCustomApiBaseUrl() || getApiBaseUrl());
+  const [backendUrlSaved, setBackendUrlSaved] = useState(false);
+
+  const handleSaveBackendUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomApiBaseUrl(backendUrlInput);
+    invalidateApiKeyValidationCache();
+    setBackendUrlSaved(true);
+    setTimeout(() => setBackendUrlSaved(false), 2500);
+    fetchHealth();
+    runLiveTest();
+  };
 
   const handleClearBrowserCacheAndSW = async () => {
     try {
@@ -420,10 +443,43 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                 </div>
 
                 {isNativeMobileApp() && (
-                  <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-800 dark:text-emerald-300 flex flex-col gap-0.5">
-                    <span className="font-bold">মোবাইল APK ব্যাকএন্ড রাউটিং সক্রিয়:</span>
-                    <span className="font-mono break-all opacity-90">{getApiBaseUrl()}</span>
-                  </div>
+                  <form
+                    onSubmit={handleSaveBackendUrl}
+                    className={`p-3 rounded-xl border text-[11px] space-y-2 ${
+                      isAiStudioAuthGatedUrl(getApiBaseUrl())
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
+                        : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-900 dark:text-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold">মোবাইল APK ব্যাকএন্ড সার্ভার URL</span>
+                      {isAiStudioAuthGatedUrl(getApiBaseUrl()) && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-[10px]">
+                          Auth-Gated Preview
+                        </span>
+                      )}
+                    </div>
+                    {isAiStudioAuthGatedUrl(getApiBaseUrl()) && (
+                      <p className="leading-relaxed opacity-90">
+                        সতর্কতা: <code>ais-pre-*</code> / <code>ais-dev-*</code> হলো AI Studio প্রাইভেট প্রিভিউ লিংক (৩ ০ ২ Auth Bridge রিডাইরেক্ট করে)। স্ট্যান্ডঅ্যালোন APK-তে সব ফিচার চালাতে আপনার পাবলিক Cloud Run বা Render সার্ভারের URL নিচে সেভ করুন।
+                      </p>
+                    )}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="url"
+                        value={backendUrlInput}
+                        onChange={(e) => setBackendUrlInput(e.target.value)}
+                        placeholder="https://your-service.run.app"
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 font-mono text-[11px] text-stone-900 dark:text-stone-100"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer shrink-0"
+                      >
+                        {backendUrlSaved ? 'সেভ হয়েছে ✓' : 'সেভ ও টেস্ট'}
+                      </button>
+                    </div>
+                  </form>
                 )}
 
                 {loadingHealth ? (

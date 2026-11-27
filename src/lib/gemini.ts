@@ -143,6 +143,32 @@ export async function ApiKeyValidator(
         signal: controller.signal,
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      const responseUrl = res.url || '';
+      if (
+        responseUrl.includes('aistudio.google.com/applet-auth-bridge') ||
+        responseUrl.includes('__cookie_check.html') ||
+        contentType.includes('text/html')
+      ) {
+        const authBridgeMsg =
+          'AI Studio Preview URL (ais-pre/ais-dev) সরাসরি মোবাইল APK-তে API অ্যাক্সেস দেয় না (Auth Bridge 302)। ডিপ্লয় করা পাবলিক Cloud Run/Render URL ব্যবহার করুন।';
+        const statusInfo: ApiStatusInfo = {
+          state: 'auth_error',
+          message: authBridgeMsg,
+          checkedAt: Date.now(),
+        };
+        const result: ApiKeyValidationResult = {
+          valid: false,
+          state: 'auth_error',
+          statusInfo,
+          error: authBridgeMsg,
+          cached: false,
+        };
+        cachedResult = result;
+        cachedAt = Date.now();
+        return result;
+      }
+
       const data = await res.json().catch(() => null);
 
       if (res.ok && data && (data.success || data.status === 'ok' || data.reply)) {
