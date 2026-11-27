@@ -167,7 +167,10 @@ export const PLAN_TOKEN_LIMITS = {
 
 export const userTokenLedger = new Map<string, { used: number; resetAt: number; plan: 'free' | 'pro' | 'enterprise' }>();
 
-const LEDGER_DIR = path.resolve(process.cwd(), '.data');
+const LEDGER_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY
+    ? path.join('/tmp', '.data')
+    : path.resolve(process.cwd(), '.data');
 const LEDGER_FILE = path.join(LEDGER_DIR, 'token_ledger.json');
 
 export function loadTokenLedgerFromDisk(): void {

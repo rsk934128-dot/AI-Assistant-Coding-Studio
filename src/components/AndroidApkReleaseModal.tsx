@@ -173,6 +173,21 @@ export const AndroidApkReleaseModal: React.FC<AndroidApkReleaseModalProps> = ({
                 </div>
               </div>
 
+              {/* Crucial Notice for GitHub APK Backend Connection */}
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200 text-xs space-y-1.5">
+                <div className="flex items-center gap-2 font-bold">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>গুরুত্বপূর্ণ: গিটহাব APK-তে সব এআই ফিচার চালানোর শর্ত</span>
+                </div>
+                <p className="text-[11px] leading-relaxed opacity-90">
+                  গিটহাব থেকে তৈরি APK ফোনের ভেতরে Express ব্যাকএন্ড চালায় না এবং AI Studio-র <code>ais-pre-*</code> লিংকও ব্রাউজার ছাড়া APK-তে ব্লক থাকে। তাই:
+                </p>
+                <ol className="list-decimal pl-5 text-[11px] space-y-1 opacity-95">
+                  <li>প্রজেক্টটি <b>Vercel</b>, <b>Render</b> বা নিজস্ব <b>Cloud Run</b>-এ ডিপ্লয় করে সেখানে <code>GEMINI_API_KEY</code> দিন।</li>
+                  <li>APK বিল্ড করার সময় GitHub Actions-এর <code>api_base_url</code> ইনপুট বা Repo Variables-এ <code>VITE_API_BASE_URL</code> হিসেবে সেই পাবলিক URL দিন (অথবা APK খুলে <b>এআই স্ট্যাটাস ও হোস্টিং</b> মেনুতে সেভ করুন)।</li>
+                </ol>
+              </div>
+
               {/* PWA Instant Install Alternative */}
               <div className="p-4 rounded-2xl bg-stone-100 dark:bg-stone-850 border border-stone-200 dark:border-stone-750 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">

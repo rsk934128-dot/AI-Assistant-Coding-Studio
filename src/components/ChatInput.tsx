@@ -30,6 +30,7 @@ import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { extractYouTubeVideoId } from '../utils/youtube';
 import { AudioFrequencyWave } from './AudioFrequencyWave';
 import { WordCharCounter } from './WordCharCounter';
+import { getApiBaseUrl, isAiStudioAuthGatedUrl, isNativeMobileApp } from '../lib/apiBase';
 
 interface ChatInputProps {
   input: string;
@@ -157,40 +158,49 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className="sticky bottom-0 z-30 border-t border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-2.5 sm:px-6 md:px-8 pt-2 pb-safe pb-2.5 sm:pb-5 md:pb-6 transition-all shrink-0">
       <div className="max-w-4xl mx-auto space-y-2 pb-safe">
         {/* API Auth Error Gate Banner (prevents redundant 403 calls until fixed/re-verified) */}
-        {isAuthBlocked && (
-          <div
-            id="chat-input-auth-error-banner"
-            className="p-2.5 sm:p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200 flex flex-wrap items-center justify-between gap-2 shadow-xs"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
-              <span className="font-medium truncate">
-                Gemini API Key ত্রুটি (403/Auth) — অপ্রয়োজনীয় রিকোয়েস্ট আটকাতে চ্যাট সাময়িকভাবে বিরতিতে আছে।
-              </span>
+        {isAuthBlocked && (() => {
+          const isMobileBackendIssue =
+            isNativeMobileApp() &&
+            (isAiStudioAuthGatedUrl(getApiBaseUrl()) ||
+              (apiStatus?.message || '').includes('Auth Bridge') ||
+              (apiStatus?.message || '').includes('পাবলিক ব্যাকএন্ড'));
+          return (
+            <div
+              id="chat-input-auth-error-banner"
+              className="p-2.5 sm:p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200 flex flex-wrap items-center justify-between gap-2 shadow-xs"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span className="font-medium truncate">
+                  {isMobileBackendIssue
+                    ? 'মোবাইল APK-তে পাবলিক ব্যাকএন্ড URL যুক্ত নেই — আপনার Vercel/Render/Cloud Run সার্ভারের লিংক সেট করুন।'
+                    : 'Gemini API Key ত্রুটি (403/Auth) — অপ্রয়োজনীয় রিকোয়েস্ট আটকাতে চ্যাট সাময়িকভাবে বিরতিতে আছে।'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {onRecheckApiStatus && (
+                  <button
+                    id="chat-input-recheck-api-btn"
+                    type="button"
+                    onClick={onRecheckApiStatus}
+                    className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                  >
+                    পুনরায় যাচাই
+                  </button>
+                )}
+                {onOpenHostingDiagnostic && (
+                  <button
+                    type="button"
+                    onClick={onOpenHostingDiagnostic}
+                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-stone-900 border border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-[11px] font-semibold transition-colors cursor-pointer"
+                  >
+                    {isMobileBackendIssue ? 'সার্ভার URL সেট করুন' : 'সমাধান দেখুন'}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {onRecheckApiStatus && (
-                <button
-                  id="chat-input-recheck-api-btn"
-                  type="button"
-                  onClick={onRecheckApiStatus}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold transition-colors cursor-pointer"
-                >
-                  পুনরায় যাচাই
-                </button>
-              )}
-              {onOpenHostingDiagnostic && (
-                <button
-                  type="button"
-                  onClick={onOpenHostingDiagnostic}
-                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-stone-900 border border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-[11px] font-semibold transition-colors cursor-pointer"
-                >
-                  সমাধান দেখুন
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Error notification if microphone is blocked or failed */}
         {errorMessage && (

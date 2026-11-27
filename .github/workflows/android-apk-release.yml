@@ -23,6 +23,10 @@ on:
           - both
           - debug
           - release
+      api_base_url:
+        description: 'Public Backend URL (e.g. https://your-app.vercel.app or .onrender.com — NOT ais-pre/ais-dev)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -64,6 +68,9 @@ jobs:
           npm install --legacy-peer-deps
 
       - name: Build Web Application
+        env:
+          VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL }}
+          VITE_FIREBASE_VAPID_KEY: ${{ vars.VITE_FIREBASE_VAPID_KEY || secrets.VITE_FIREBASE_VAPID_KEY }}
         run: |
           npm run build
 

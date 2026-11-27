@@ -69,17 +69,25 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
   const [healthError, setHealthError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestResult>({ loading: false });
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
-  const [backendUrlInput, setBackendUrlInput] = useState<string>(() => getCustomApiBaseUrl() || getApiBaseUrl());
+  const [backendUrlInput, setBackendUrlInput] = useState<string>(() => {
+    const custom = getCustomApiBaseUrl();
+    if (custom) return custom;
+    const current = getApiBaseUrl();
+    return isAiStudioAuthGatedUrl(current) ? '' : current;
+  });
   const [backendUrlSaved, setBackendUrlSaved] = useState(false);
 
   const handleSaveBackendUrl = (e: React.FormEvent) => {
     e.preventDefault();
-    setCustomApiBaseUrl(backendUrlInput);
+    const saved = setCustomApiBaseUrl(backendUrlInput);
     invalidateApiKeyValidationCache();
     setBackendUrlSaved(true);
     setTimeout(() => setBackendUrlSaved(false), 2500);
     fetchHealth();
     runLiveTest();
+    if (saved && isAiStudioAuthGatedUrl(saved)) {
+      setHealthError('সতর্কতা: ais-pre-* বা ais-dev-* প্রিভিউ লিংক AI Studio Auth Bridge দ্বারা ব্লক হয়। অনুগ্রহ করে Vercel, Render বা নিজের Cloud Run URL ব্যবহার করুন।');
+    }
   };
 
   const handleClearBrowserCacheAndSW = async () => {
@@ -297,6 +305,9 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const custom = getCustomApiBaseUrl();
+      const current = custom || getApiBaseUrl();
+      setBackendUrlInput(isAiStudioAuthGatedUrl(current) && !custom ? '' : current);
       fetchHealth();
     }
   }, [isOpen]);
@@ -461,7 +472,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                     </div>
                     {isAiStudioAuthGatedUrl(getApiBaseUrl()) && (
                       <p className="leading-relaxed opacity-90">
-                        সতর্কতা: <code>ais-pre-*</code> / <code>ais-dev-*</code> হলো AI Studio প্রাইভেট প্রিভিউ লিংক (৩ ০ ২ Auth Bridge রিডাইরেক্ট করে)। স্ট্যান্ডঅ্যালোন APK-তে সব ফিচার চালাতে আপনার পাবলিক Cloud Run বা Render সার্ভারের URL নিচে সেভ করুন।
+                        সতর্কতা: <code>ais-pre-*</code> / <code>ais-dev-*</code> হলো AI Studio প্রাইভেট প্রিভিউ লিংক (৩ ০ ২ Auth Bridge রিডাইরেক্ট করে)। স্ট্যান্ডঅ্যালোন APK-তে সব ফিচার চালাতে আপনার GitHub প্রজেক্টটি Vercel, Render অথবা নিজের Cloud Run-এ ডিপ্লয় করে সেই পাবলিক URL-টি নিচে সেভ করুন।
                       </p>
                     )}
                     <div className="flex flex-col sm:flex-row gap-2">
@@ -469,7 +480,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                         type="url"
                         value={backendUrlInput}
                         onChange={(e) => setBackendUrlInput(e.target.value)}
-                        placeholder="https://your-service.run.app"
+                        placeholder="https://your-app.vercel.app বা https://your-app.onrender.com"
                         className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 font-mono text-[11px] text-stone-900 dark:text-stone-100"
                       />
                       <button
@@ -632,35 +643,11 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
 
           {activeTab === 'cloudrun' && (
             <div className="space-y-4 text-xs leading-relaxed">
-              <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-stone-900 to-stone-900 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider font-mono">
-                      সক্রিয় লাইভ ক্লাউড রান ডিপ্লয়মেন্ট
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-mono font-bold">
-                      200 OK
-                    </span>
-                  </div>
-                  <p className="text-xs text-stone-300 font-mono break-all">
-                    https://remix-ai-assistant-coding-studio-8642-922753271960.us-west1.run.app/
-                  </p>
-                  <p className="text-[11px] text-stone-400">
-                    Express backend, Gemini 3.8 Flash, এবং Vite SPA ক্লাউড রানে সফলভাবে অনলাইন।
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <a
-                    href="https://remix-ai-assistant-coding-studio-8642-922753271960.us-west1.run.app/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors cursor-pointer"
-                  >
-                    <span>সাইটটি ভিজিট করুন</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
+              <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 space-y-2">
+                <p className="font-bold text-xs">গুরুত্বপূর্ণ (মোবাইল APK বনাম AI Studio প্রিভিউ):</p>
+                <p>
+                  AI Studio-র প্রিভিউ লিংক (<code>ais-pre-*</code> / <code>ais-dev-*</code>) শুধুমাত্র ব্রাউজারে AI Studio অ্যাকাউন্টে লগইন থাকা অবস্থায় কাজ করে। গিটহাব থেকে তৈরি Android APK-তে ফুল-স্ট্যাক এআই ফিচার চালাতে অ্যাপটি একটি পাবলিক সার্ভারে (<strong>Vercel</strong>, <strong>Render</strong> বা <strong>নিজস্ব Google Cloud Run</strong>) ডিপ্লয় করে সেই URL-টি <code>VITE_API_BASE_URL</code>-এ দিতে হবে।
+                </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 text-blue-900 dark:text-blue-200 space-y-1">

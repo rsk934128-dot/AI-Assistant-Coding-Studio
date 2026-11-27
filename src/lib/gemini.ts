@@ -1,5 +1,10 @@
 import { ApiConnectionState, ApiStatusInfo } from '../types';
-import { resolveApiUrl } from './apiBase';
+import {
+  getApiBaseUrl,
+  isAiStudioAuthGatedUrl,
+  isNativeMobileApp,
+  resolveApiUrl,
+} from './apiBase';
 
 export interface ApiKeyValidationResult {
   valid: boolean;
@@ -42,6 +47,9 @@ export function classifyApiErrorState(errorText: string): ApiConnectionState {
     lower.includes('api key not valid') ||
     lower.includes('api key পাওয়া যায়নি') ||
     lower.includes('বাতিলকৃত') ||
+    lower.includes('auth bridge') ||
+    lower.includes('applet-auth-bridge') ||
+    lower.includes('পাবলিক ব্যাকএন্ড') ||
     lower.includes('403') ||
     lower.includes('401')
   ) {
@@ -126,6 +134,27 @@ export async function ApiKeyValidator(
 
   if (inFlightValidation) {
     return inFlightValidation;
+  }
+
+  if (isNativeMobileApp() && isAiStudioAuthGatedUrl(getApiBaseUrl())) {
+    const mobileConfigMsg =
+      'মোবাইল APK-তে পাবলিক ব্যাকএন্ড URL সেট করা নেই (AI Studio-র ais-pre প্রিভিউ লিংক বাইরের APK থেকে Auth Bridge 302 ব্লক করে)। আপনার Vercel/Render/Cloud Run সার্ভার URL সেট করুন।';
+    const statusInfo: ApiStatusInfo = {
+      state: 'auth_error',
+      message: mobileConfigMsg,
+      checkedAt: Date.now(),
+    };
+    const result: ApiKeyValidationResult = {
+      valid: false,
+      state: 'auth_error',
+      statusInfo,
+      keyStatus: 'mobile_backend_required',
+      error: mobileConfigMsg,
+      cached: false,
+    };
+    cachedResult = result;
+    cachedAt = Date.now();
+    return result;
   }
 
   inFlightValidation = (async (): Promise<ApiKeyValidationResult> => {
