@@ -28,7 +28,11 @@ import {
   RefreshCw,
   Camera,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Bell,
+  BellRing,
+  Copy,
+  Check
 } from 'lucide-react';
 import { CommunityUser, CommunityMessage, CallSession, CallType } from '../types/community';
 import { 
@@ -41,6 +45,12 @@ import {
 } from '../lib/communityService';
 import { useCall } from '../context/CallContext';
 import { useAuth } from '../context/AuthContext';
+import {
+  enableFcmPushNotifications,
+  getStoredFcmToken,
+  isFcmPushSupported,
+  subscribeForegroundFcmMessages,
+} from '../lib/fcmNotifications';
 
 interface CommunityHubModalProps {
   isOpen: boolean;
@@ -71,6 +81,44 @@ export const CommunityHubModal: React.FC<CommunityHubModalProps> = ({
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState(currentUser.displayName);
   const [editBio, setEditBio] = useState(currentUser.bio || '');
+  const [pushSupported, setPushSupported] = useState<boolean>(false);
+  const [pushToken, setPushToken] = useState<string | null>(() => getStoredFcmToken());
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushStatusMsg, setPushStatusMsg] = useState<string | null>(null);
+  const [showPushPanel, setShowPushPanel] = useState(false);
+  const [copiedPushToken, setCopiedPushToken] = useState(false);
+
+  useEffect(() => {
+    let unsub: (() => void) | null = null;
+    isFcmPushSupported().then((ok) => {
+      setPushSupported(ok);
+      if (ok) {
+        subscribeForegroundFcmMessages((payload) => {
+          const title = payload.notification?.title || 'নতুন কমিউনিটি বার্তা';
+          const body = payload.notification?.body || '';
+          setPushStatusMsg(`${title}${body ? `: ${body}` : ''}`);
+        }).then((fn) => {
+          unsub = fn;
+        });
+      }
+    });
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
+
+  const handleEnablePush = async () => {
+    setPushLoading(true);
+    setPushStatusMsg(null);
+    const res = await enableFcmPushNotifications();
+    setPushLoading(false);
+    if (res.success && res.token) {
+      setPushToken(res.token);
+      setPushStatusMsg('Firebase Web Push নোটিফিকেশন সফলভাবে চালু হয়েছে।');
+    } else {
+      setPushStatusMsg(res.error || 'নোটিফিকেশন চালু করা যায়নি।');
+    }
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -360,6 +408,20 @@ export const CommunityHubModal: React.FC<CommunityHubModalProps> = ({
             </div>
 
             <button
+              type="button"
+              onClick={() => setShowPushPanel((v) => !v)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                pushToken
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                  : 'bg-stone-100 dark:bg-stone-850 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-750 hover:bg-stone-200 dark:hover:bg-stone-800'
+              }`}
+              title="Firebase Push নোটিফিকেশন সেটিংস"
+            >
+              {pushToken ? <BellRing className="w-3.5 h-3.5 text-emerald-500" /> : <Bell className="w-3.5 h-3.5" />}
+              <span className="hidden md:inline">{pushToken ? 'পুশ সক্রিয়' : 'নোটিফিকেশন'}</span>
+            </button>
+
+            <button
               onClick={onClose}
               className="p-2 rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
               title="বন্ধ করুন"
@@ -368,6 +430,54 @@ export const CommunityHubModal: React.FC<CommunityHubModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Firebase Push Notification Drawer */}
+        {showPushPanel && (
+          <div className="px-5 py-3 bg-blue-50/80 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-900/60 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+            <div className="space-y-0.5 min-w-0 flex-1">
+              <div className="flex items-center gap-2 font-bold text-blue-950 dark:text-blue-200">
+                <BellRing className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span>Firebase Cloud Messaging (Web Push VAPID সক্রিয়)</span>
+              </div>
+              <p className="text-[11px] text-blue-800/90 dark:text-blue-300/90">
+                {pushStatusMsg
+                  ? pushStatusMsg
+                  : pushToken
+                  ? 'এই ডিভাইসটি Firebase Push নোটিফিকেশনের জন্য নিবন্ধিত আছে।'
+                  : pushSupported
+                  ? 'রিয়েল-টাইম মেসেজ ও কল নোটিফিকেশন পেতে পুশ নোটিফিকেশন চালু করুন।'
+                  : 'এই ব্রাউজার বা WebView-তে Web Push সমর্থিত নয়।'}
+              </p>
+              {pushToken && (
+                <div className="flex items-center gap-2 pt-1">
+                  <code className="px-2 py-0.5 rounded bg-white/80 dark:bg-stone-900 border border-blue-200 dark:border-blue-800 font-mono text-[10px] truncate max-w-[260px] sm:max-w-[380px]">
+                    {pushToken}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(pushToken);
+                      setCopiedPushToken(true);
+                      setTimeout(() => setCopiedPushToken(false), 2000);
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold cursor-pointer"
+                  >
+                    {copiedPushToken ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedPushToken ? 'কপি হয়েছে' : 'টোকেন কপি'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleEnablePush}
+              disabled={pushLoading || !pushSupported}
+              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs shadow-xs cursor-pointer shrink-0"
+            >
+              {pushLoading ? 'চালু হচ্ছে...' : pushToken ? 'টোকেন রিফ্রেশ' : 'নোটিফিকেশন চালু করুন'}
+            </button>
+          </div>
+        )}
 
         {/* Profile Edit Drawer */}
         {isEditingProfile && (

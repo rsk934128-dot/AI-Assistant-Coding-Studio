@@ -140,8 +140,9 @@ export default defineConfig(() => {
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB to accommodate bundles
-          navigateFallbackDenylist: [/^\/api(\/.*)?$/i],
+          navigateFallbackDenylist: [/^\/api(\/.*)?$/i, /^\/firebase-messaging-sw\.js$/i],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globIgnores: ['firebase-messaging-sw.js'],
           runtimeCaching: [
             {
               urlPattern: /^\/api(\/.*)?$/i,
