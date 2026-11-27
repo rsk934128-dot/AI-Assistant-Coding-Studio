@@ -6,6 +6,8 @@
  * 3. Resilient Web Speech API fallback with utterance garbage-collection protection
  */
 
+import { resolveApiUrl } from '../lib/apiBase';
+
 export interface TTSOptions {
   speed?: number; // 0.8, 1.0, 1.25, 1.5
   preferredMode?: 'natural' | 'browser';
@@ -274,7 +276,7 @@ export class ContinuousTTSPlayer {
   private getAudioUrl(chunk: string): string {
     const hasBengali = /[\u0980-\u09FF]/.test(chunk);
     const lang = hasBengali ? 'bn' : 'en';
-    return `/api/tts?text=${encodeURIComponent(chunk)}&lang=${lang}`;
+    return resolveApiUrl(`/api/tts?text=${encodeURIComponent(chunk)}&lang=${lang}`);
   }
 
   private preloadNextChunk(index: number) {

@@ -20,6 +20,9 @@ import {
   Radio,
   ArrowLeft
 } from 'lucide-react';
+import { ApiStatusInfo } from '../types';
+import { markApiKeyValidationHealthy, markApiKeyValidationError } from '../lib/gemini';
+import { getApiBaseUrl, isNativeMobileApp, resolveApiUrl } from '../lib/apiBase';
 
 interface HealthData {
   status: string;
@@ -41,11 +44,13 @@ interface TestResult {
 interface HostingDiagnosticModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onStatusUpdate?: (info: ApiStatusInfo) => void;
 }
 
 export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
   isOpen,
   onClose,
+  onStatusUpdate,
 }) => {
   const [activeTab, setActiveTab] = useState<'status' | 'cloudrun' | 'render' | 'static' | 'apikey'>('status');
   const [health, setHealth] = useState<HealthData | null>(null);
@@ -81,9 +86,9 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
     }
 
     const endpointsToTry = [
-      `/api/health?_t=${Date.now()}`,
-      `/api/health`,
-      `/api?_t=${Date.now()}`,
+      resolveApiUrl(`/api/health?_t=${Date.now()}`),
+      resolveApiUrl(`/api/health`),
+      resolveApiUrl(`/api?_t=${Date.now()}`),
     ];
 
     let lastErrorMsg = '';
@@ -117,7 +122,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
               port: parsedData.port || 3000,
               nodeEnv: parsedData.nodeEnv || 'development',
               time: parsedData.time || new Date().toISOString(),
-              supportedModels: parsedData.supportedModels || ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'],
+              supportedModels: parsedData.supportedModels || ['gemini-4-hydrogen', 'gemini-3.1-flash-lite', 'gemini-flash-latest'],
             });
             setHealthError(null);
             setLoadingHealth(false);
@@ -158,7 +163,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
 
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
+          res = await fetch(resolveApiUrl(`/api/health/test?_t=${Date.now()}`), { 
             method: 'POST',
             headers: {
               'Accept': 'application/json',
@@ -168,7 +173,7 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
           });
 
           if (res.status === 405) {
-            res = await fetch(`/api/health/test?_t=${Date.now()}`, { 
+            res = await fetch(resolveApiUrl(`/api/health/test?_t=${Date.now()}`), { 
               method: 'GET',
               headers: {
                 'Accept': 'application/json',
@@ -226,6 +231,8 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
           latencyMs: data.latencyMs,
           reply: data.reply || 'OK',
         });
+        const healthyInfo = markApiKeyValidationHealthy(data.latencyMs);
+        onStatusUpdate?.(healthyInfo);
         // If main health state was empty or in error, automatically sync it!
         if (!health) {
           fetchHealth();
@@ -246,13 +253,22 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
           latencyMs: data?.latencyMs,
           error: errMessage,
         });
+        const errorInfo = markApiKeyValidationError(`${errMessage} ${data?.keyStatus || ''} ${data?.status || ''} ${data?.rawMessage || ''}`);
+        onStatusUpdate?.({
+          ...errorInfo,
+          latencyMs: data?.latencyMs,
+          message: errMessage,
+        });
       }
     } catch (err: any) {
+      const msg = err?.message || 'সার্ভার রেসপন্স করছে না। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
       setTestResult({
         loading: false,
         success: false,
-        error: err?.message || 'সার্ভার রেসপন্স করছে না। অনুগ্রহ করে পুনরায় চেষ্টা করুন।',
+        error: msg,
       });
+      const errorInfo = markApiKeyValidationError(msg);
+      onStatusUpdate?.(errorInfo);
     }
   };
 
@@ -402,6 +418,13 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
                     <span>রিফ্রেশ করুন</span>
                   </button>
                 </div>
+
+                {isNativeMobileApp() && (
+                  <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-800 dark:text-emerald-300 flex flex-col gap-0.5">
+                    <span className="font-bold">মোবাইল APK ব্যাকএন্ড রাউটিং সক্রিয়:</span>
+                    <span className="font-mono break-all opacity-90">{getApiBaseUrl()}</span>
+                  </div>
+                )}
 
                 {loadingHealth ? (
                   <div className="py-6 flex flex-col items-center justify-center gap-2 text-stone-500">

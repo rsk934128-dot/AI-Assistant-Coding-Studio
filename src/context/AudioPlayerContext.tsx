@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback, ReactNode } from 'react';
+import { resolveApiUrl } from '../lib/apiBase';
 
 export interface AudioTrack {
   id: string;
@@ -66,7 +67,7 @@ export const DEFAULT_PRESET_TRACKS: AudioTrack[] = [
     title: 'AI Assistant বাংলা পরিচিতি ও অনুপ্রেরণা',
     artist: 'AI Assistant Studio • শেখ ফরিদ',
     album: 'Studio Voice Showcase',
-    src: '/api/tts?text=%E0%A6%86%E0%A6%AE%E0%A6%BF%20AI%20Assistant%20and%20Coding%20Studio%20%E0%A6%8F%E0%A6%B0%20%E0%A6%B8%E0%A7%8D%E0%A6%AE%E0%A6%BE%E0%A6%B0%E0%A7%8D%E0%A6%9F%20%E0%A6%8F%E0%A6%86%E0%A6%87%20%E0%A6%B8%E0%A6%B9%E0%A6%95%E0%A6%BE%E0%A6%B0%E0%A7%80%E0%A5%A4%20%E0%A6%95%E0%A7%8B%E0%A6%A1%E0%A6%BF%E0%A6%82%20%E0%A6%93%20%E0%A6%B8%E0%A6%AB%E0%A6%9F%E0%A6%93%E0%A6%AF%E0%A6%BC%E0%A6%BE%E0%A6%B0%20%E0%A6%A1%E0%A7%87%E0%A6%AD%E0%A7%87%E0%A6%B2%E0%A6%AA%E0%A6%AE%E0%A7%87%E0%A6%A8%E0%A7%8D%E0%A6%9F%E0%A7%87%20%E0%A6%86%E0%A6%AA%E0%A6%A8%E0%A6%BE%E0%A6%95%E0%A7%87%20%E0%A6%B8%E0%A7%8D%E0%A6%AC%E0%A6%BE%E0%A6%97%E0%A6%A4%E0%A6%AE%E0%A5%A4&lang=bn',
+    src: resolveApiUrl('/api/tts?text=%E0%A6%86%E0%A6%AE%E0%A6%BF%20AI%20Assistant%20and%20Coding%20Studio%20%E0%A6%8F%E0%A6%B0%20%E0%A6%B8%E0%A7%8D%E0%A6%AE%E0%A6%BE%E0%A6%B0%E0%A7%8D%E0%A6%9F%20%E0%A6%8F%E0%A6%86%E0%A6%87%20%E0%A6%B8%E0%A6%B9%E0%A6%95%E0%A6%BE%E0%A6%B0%E0%A7%80%E0%A5%A4%20%E0%A6%95%E0%A7%8B%E0%A6%A1%E0%A6%BF%E0%A6%82%20%E0%A6%93%20%E0%A6%B8%E0%A6%AB%E0%A6%9F%E0%A6%93%E0%A6%AF%E0%A6%BC%E0%A6%BE%E0%A6%B0%20%E0%A6%A1%E0%A7%87%E0%A6%AD%E0%A7%87%E0%A6%B2%E0%A6%AA%E0%A6%AE%E0%A7%87%E0%A6%A8%E0%A7%8D%E0%A6%9F%E0%A7%87%20%E0%A6%86%E0%A6%AA%E0%A6%A8%E0%A6%BE%E0%A6%95%E0%A7%87%20%E0%A6%B8%E0%A7%8D%E0%A6%AC%E0%A6%BE%E0%A6%97%E0%A6%A4%E0%A6%AE%E0%A5%A4&lang=bn'),
     artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80',
     category: 'tts',
   },
@@ -316,7 +317,7 @@ export const AudioPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     const audio = audioRef.current;
     if (audio) {
-      audio.src = track.src;
+      audio.src = resolveApiUrl(track.src);
       audio.playbackRate = playbackRate;
       audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     }
@@ -328,7 +329,7 @@ export const AudioPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
       setCurrentTrackIndex(index);
       const audio = audioRef.current;
       if (audio) {
-        audio.src = playlist[index].src;
+        audio.src = resolveApiUrl(playlist[index].src);
         audio.playbackRate = playbackRate;
         audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
       }
@@ -347,7 +348,7 @@ export const AudioPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
         audioContextRef.current.resume();
       }
       if (!audio.src && currentTrack) {
-        audio.src = currentTrack.src;
+        audio.src = resolveApiUrl(currentTrack.src);
       }
       audio.play().catch((e) => console.warn('Audio play error:', e));
     }
@@ -375,7 +376,7 @@ export const AudioPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
     setCurrentTrackIndex(nextIndex);
     const audio = audioRef.current;
     if (audio && playlist[nextIndex]) {
-      audio.src = playlist[nextIndex].src;
+      audio.src = resolveApiUrl(playlist[nextIndex].src);
       audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     }
   }, [playlist, currentTrackIndex, isShuffle, initAudioContext]);
@@ -393,7 +394,7 @@ export const AudioPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const prevIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
     setCurrentTrackIndex(prevIndex);
     if (audio && playlist[prevIndex]) {
-      audio.src = playlist[prevIndex].src;
+      audio.src = resolveApiUrl(playlist[prevIndex].src);
       audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     }
   }, [playlist, currentTrackIndex, initAudioContext]);
@@ -500,7 +501,7 @@ export const AudioPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (!clean) return;
 
     const encoded = encodeURIComponent(clean.slice(0, 200));
-    const ttsUrl = `/api/tts?text=${encoded}&lang=${lang}`;
+    const ttsUrl = resolveApiUrl(`/api/tts?text=${encoded}&lang=${lang}`);
 
     const ttsTrack: AudioTrack = {
       id: `tts-${Date.now()}`,

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { useAuth } from '../context/AuthContext';
+import { resolveApiUrl } from '../lib/apiBase';
 
 export type UniversalTab = 'apps' | 'gmail' | 'message' | 'github' | 'people' | 'ddns';
 
@@ -229,7 +230,7 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
   const handleDetectMyIp = async () => {
     setIsDetectingIp(true);
     try {
-      const res = await fetch('/api/ddns/my-ip');
+      const res = await fetch(resolveApiUrl('/api/ddns/my-ip'));
       if (res.ok) {
         const data = await res.json();
         if (data.ip) setDdnsIp(data.ip);
@@ -246,7 +247,7 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
     setIsUpdatingDdns(true);
     setDdnsResponse(null);
     try {
-      const res = await fetch('/api/ddns/update', {
+      const res = await fetch(resolveApiUrl('/api/ddns/update'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -283,8 +284,8 @@ export const UniversalAppsConnectModal: React.FC<UniversalAppsConnectModalProps>
       setIsLoadingRepos(true);
       try {
         const [userRes, reposRes] = await Promise.all([
-          fetch('/api/github/user').catch(() => null),
-          fetch('/api/github/repos').catch(() => null),
+          fetch(resolveApiUrl('/api/github/user')).catch(() => null),
+          fetch(resolveApiUrl('/api/github/repos')).catch(() => null),
         ]);
 
         if (active && userRes && userRes.ok) {

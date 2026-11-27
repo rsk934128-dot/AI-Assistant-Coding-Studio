@@ -23,7 +23,7 @@ import {
   Loader2,
   Check
 } from 'lucide-react';
-import { AssistantMode } from '../types';
+import { AssistantMode, ApiStatusInfo } from '../types';
 import { useMediaRecorderVoice, VoiceLanguage } from '../hooks/useMediaRecorderVoice';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
@@ -42,6 +42,9 @@ interface ChatInputProps {
   mode: AssistantMode;
   setMode: (mode: AssistantMode) => void;
   onOpenGoogleDrive?: () => void;
+  apiStatus?: ApiStatusInfo;
+  onOpenHostingDiagnostic?: () => void;
+  onRecheckApiStatus?: () => void;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -55,6 +58,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   mode,
   setMode,
   onOpenGoogleDrive,
+  apiStatus,
+  onOpenHostingDiagnostic,
+  onRecheckApiStatus,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,10 +114,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [input]);
 
+  const isAuthBlocked = apiStatus?.state === 'auth_error';
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isGenerating && input.trim()) {
+      if (!isGenerating && !isAuthBlocked && input.trim()) {
         if (isRecording) stopRecording();
         onSend();
       }
@@ -148,6 +156,42 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className="sticky bottom-0 z-30 border-t border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-2.5 sm:px-6 md:px-8 pt-2 pb-safe pb-2.5 sm:pb-5 md:pb-6 transition-all shrink-0">
       <div className="max-w-4xl mx-auto space-y-2 pb-safe">
+        {/* API Auth Error Gate Banner (prevents redundant 403 calls until fixed/re-verified) */}
+        {isAuthBlocked && (
+          <div
+            id="chat-input-auth-error-banner"
+            className="p-2.5 sm:p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200 flex flex-wrap items-center justify-between gap-2 shadow-xs"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+              <span className="font-medium truncate">
+                Gemini API Key ত্রুটি (403/Auth) — অপ্রয়োজনীয় রিকোয়েস্ট আটকাতে চ্যাট সাময়িকভাবে বিরতিতে আছে।
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onRecheckApiStatus && (
+                <button
+                  id="chat-input-recheck-api-btn"
+                  type="button"
+                  onClick={onRecheckApiStatus}
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  পুনরায় যাচাই
+                </button>
+              )}
+              {onOpenHostingDiagnostic && (
+                <button
+                  type="button"
+                  onClick={onOpenHostingDiagnostic}
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-stone-900 border border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  সমাধান দেখুন
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Error notification if microphone is blocked or failed */}
         {errorMessage && (
           <div
@@ -535,6 +579,53 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-1.5 z-20">
+              {/* Compact Gemini API Connection Status Indicator */}
+              {apiStatus && (
+                <button
+                  id="chat-input-api-status-btn"
+                  type="button"
+                  onClick={() => onOpenHostingDiagnostic?.()}
+                  title={
+                    apiStatus.state === 'healthy'
+                      ? `Gemini API সচল${apiStatus.latencyMs ? ` (${apiStatus.latencyMs}ms)` : ''}`
+                      : apiStatus.state === 'auth_error'
+                      ? 'Gemini API Key ত্রুটি (403/Auth) — বিস্তারিত দেখতে ক্লিক করুন'
+                      : apiStatus.state === 'degraded'
+                      ? 'Gemini API সাময়িক চাপে রয়েছে — বিস্তারিত দেখতে ক্লিক করুন'
+                      : 'Gemini API সংযোগ যাচাই হচ্ছে...'
+                  }
+                  aria-label="Gemini API সংযোগ স্ট্যাটাস"
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold border transition-all cursor-pointer shrink-0 ${
+                    apiStatus.state === 'healthy'
+                      ? 'bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/70 hover:bg-emerald-100/80'
+                      : apiStatus.state === 'auth_error'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 hover:bg-rose-100'
+                      : apiStatus.state === 'degraded'
+                      ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-100'
+                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      apiStatus.state === 'healthy'
+                        ? 'bg-emerald-500'
+                        : apiStatus.state === 'auth_error'
+                        ? 'bg-rose-500 animate-pulse'
+                        : 'bg-amber-500 animate-pulse'
+                    }`}
+                  />
+                  <span className={apiStatus.state === 'auth_error' ? 'inline' : 'hidden md:inline'}>
+                    {apiStatus.state === 'healthy'
+                      ? 'API'
+                      : apiStatus.state === 'auth_error'
+                      ? 'Key ত্রুটি'
+                      : apiStatus.state === 'degraded'
+                      ? 'চাপ'
+                      : 'যাচাই'}
+                  </span>
+                </button>
+              )}
+
               {/* Desktop / Tablet Word & Character Counter Component */}
               <div className="hidden sm:inline-flex shrink-0">
                 <WordCharCounter
@@ -566,14 +657,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     if (isRecording) stopRecording();
                     onSend();
                   }}
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || isAuthBlocked}
                   aria-label="মেসেজ পাঠান (Send message)"
-                  className={`p-2.5 sm:p-2.5 rounded-xl transition-all shrink-0 min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer ${
-                    input.trim()
-                      ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-md shadow-emerald-600/30 active:scale-95'
+                  className={`p-2.5 sm:p-2.5 rounded-xl transition-all shrink-0 min-w-[38px] min-h-[38px] flex items-center justify-center ${
+                    input.trim() && !isAuthBlocked
+                      ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-md shadow-emerald-600/30 active:scale-95 cursor-pointer'
                       : 'bg-stone-100 dark:bg-stone-850 text-stone-400 dark:text-stone-600 border border-stone-200/80 dark:border-stone-800 cursor-not-allowed'
                   }`}
-                  title="মেসেজ পাঠান (Send message)"
+                  title={
+                    isAuthBlocked
+                      ? 'Gemini API Key যাচাই না হওয়া পর্যন্ত মেসেজ পাঠানো বন্ধ রয়েছে'
+                      : 'মেসেজ পাঠান (Send message)'
+                  }
                 >
                   <Send className="w-4 h-4" />
                 </button>

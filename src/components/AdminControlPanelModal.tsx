@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ChatSession } from '../types';
+import { resolveApiUrl } from '../lib/apiBase';
 
 interface AdminControlPanelModalProps {
   isOpen: boolean;
@@ -72,7 +73,7 @@ export const AdminControlPanelModal: React.FC<AdminControlPanelModalProps> = ({
     setIsLoadingStats(true);
     setStatsError(null);
     try {
-      const res = await fetch('/api/admin/system-stats', {
+      const res = await fetch(resolveApiUrl('/api/admin/system-stats'), {
         headers: { 'x-admin-key': adminKey || 'dev-local-admin' }
       });
       if (res.ok) {
@@ -80,7 +81,7 @@ export const AdminControlPanelModal: React.FC<AdminControlPanelModalProps> = ({
         setServerStats(data);
       } else {
         // Fallback info from health
-        const healthRes = await fetch('/api/health');
+        const healthRes = await fetch(resolveApiUrl('/api/health'));
         if (healthRes.ok) {
           const hData = await healthRes.json();
           setServerStats({
@@ -108,7 +109,7 @@ export const AdminControlPanelModal: React.FC<AdminControlPanelModalProps> = ({
     setIsRunningTests(true);
     setTestError(null);
     try {
-      const res = await fetch('/api/admin/run-security-tests', {
+      const res = await fetch(resolveApiUrl('/api/admin/run-security-tests'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

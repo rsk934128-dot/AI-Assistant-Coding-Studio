@@ -27,7 +27,9 @@ import {
   PhoneOff,
   Headphones,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  Filter,
+  ChevronDown
 } from 'lucide-react';
 import { ProjectMetricsModal } from './components/ProjectMetricsModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
@@ -39,7 +41,9 @@ import { IncomingCallToast } from './components/IncomingCallToast';
 import { CallSession } from './types/community';
 import { getLocalUserProfile } from './lib/communityService';
 import { useCall } from './context/CallContext';
-import { ChatMessage, ChatSession, AssistantMode } from './types';
+import { ChatMessage, ChatSession, AssistantMode, ApiStatusInfo, QuickPrompt } from './types';
+import { ApiKeyValidator, markApiKeyValidationHealthy, markApiKeyValidationError } from './lib/gemini';
+import { resolveApiUrl } from './lib/apiBase';
 import { QUICK_PROMPTS } from './data/prompts';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -154,6 +158,18 @@ export default function App() {
   const [paymentGatewayModalOpen, setPaymentGatewayModalOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [androidReleaseModalOpen, setAndroidReleaseModalOpen] = useState(false);
+  const [promptCategoryFilter, setPromptCategoryFilter] = useState<'all' | QuickPrompt['category']>('all');
+  const [apiStatus, setApiStatus] = useState<ApiStatusInfo>({ state: 'checking' });
+
+  const checkGeminiApiStatus = async (force = false) => {
+    setApiStatus((prev) => ({ ...prev, state: 'checking' }));
+    const result = await ApiKeyValidator({ force });
+    setApiStatus(result.statusInfo);
+  };
+
+  useEffect(() => {
+    checkGeminiApiStatus(false);
+  }, []);
   const [universalAppsModalConfig, setUniversalAppsModalConfig] = useState<{
     isOpen: boolean;
     tab: UniversalTab;
@@ -490,7 +506,7 @@ export default function App() {
     try {
       let conciseTitle = '';
       try {
-        const response = await fetch('/api/session/title', {
+        const response = await fetch(resolveApiUrl('/api/session/title'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -555,6 +571,29 @@ export default function App() {
     abortControllerRef.current = controller;
 
     try {
+      // Pre-flight lightweight API key validation to prevent redundant 403 calls
+      const validation = await ApiKeyValidator();
+      setApiStatus(validation.statusInfo);
+      if (!validation.valid && validation.state === 'auth_error') {
+        const authErrMsg =
+          validation.error ||
+          '⚠️ Gemini API Key বাতিলকৃত বা পাওয়া যায়নি (403 Auth Error)। অনুগ্রহ করে Settings > Secrets প্যানেল থেকে নতুন API Key আপডেট করুন।';
+        updateActiveSession((s) => ({
+          ...s,
+          messages: s.messages.map((m) =>
+            m.id === assistantMsgId
+              ? {
+                  ...m,
+                  text: authErrMsg,
+                  isStreaming: false,
+                  error: authErrMsg,
+                }
+              : m
+          ),
+        }));
+        return;
+      }
+
       let useDirectFallback = false;
       let response: Response | null = null;
 
@@ -562,7 +601,7 @@ export default function App() {
       // We perform an automatic fast-retry on transient 5xx errors before failing.
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          response = await fetch('/api/chat/stream', {
+          response = await fetch(resolveApiUrl('/api/chat/stream'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -659,6 +698,9 @@ export default function App() {
           ),
         }));
 
+        if (accumulatedText.trim()) {
+          setApiStatus(markApiKeyValidationHealthy());
+        }
         if (isFirstTurn && accumulatedText.trim() && (targetSessionId || activeSessionId)) {
           generateSessionTitle(targetSessionId || activeSessionId, promptText, finalAssistantText, mode);
         }
@@ -733,6 +775,7 @@ export default function App() {
         if (data.error) {
           hasReceivedError = true;
           const errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+          setApiStatus(markApiKeyValidationError(errorMsg));
           updateActiveSession((s) => ({
             ...s,
             messages: s.messages.map((m) =>
@@ -808,6 +851,7 @@ export default function App() {
         }
 
         const finalAssistantText = accumulatedText;
+        setApiStatus(markApiKeyValidationHealthy());
         // Finish streaming
         updateActiveSession((s) => ({
           ...s,
@@ -837,6 +881,7 @@ export default function App() {
         const friendlyErr =
           err?.message ||
           'একটি ত্রুটি ঘটেছে। দয়া করে AI Studio-র Settings > Secrets প্যানেল থেকে আপনার Gemini API Key চেক করুন।';
+        setApiStatus(markApiKeyValidationError(friendlyErr));
         updateActiveSession((s) => ({
           ...s,
           messages: s.messages.map((m) =>
@@ -1028,6 +1073,8 @@ export default function App() {
           activeSessionId={activeSession?.id}
           isPinned={Boolean(activeSession?.isPinned)}
           onTogglePin={() => handleTogglePinSession(activeSession.id)}
+          apiStatus={apiStatus}
+          onCheckApiStatus={() => checkGeminiApiStatus(true)}
         />
 
         {/* Scrollable messages container */}
@@ -1236,14 +1283,42 @@ export default function App() {
 
               {/* Quick Prompts Grid */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400">
                     রেডিমেড প্রম্পট ও ফিচার (Quick Starters)
                   </h3>
-                  <span className="text-[11px] text-stone-600 dark:text-stone-400">ক্লিক করে সরাসরি শুরু করুন</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative">
+                      <label htmlFor="prompt-category-filter" className="sr-only">
+                        প্রম্পট ক্যাটাগরি ফিল্টার
+                      </label>
+                      <Filter className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400 pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <select
+                        id="prompt-category-filter"
+                        value={promptCategoryFilter}
+                        onChange={(e) => setPromptCategoryFilter(e.target.value as 'all' | QuickPrompt['category'])}
+                        aria-label="প্রম্পট ক্যাটাগরি ফিল্টার"
+                        className="appearance-none pl-8 pr-7 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs font-semibold text-stone-700 dark:text-stone-200 hover:border-emerald-400 dark:hover:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <option value="all">সকল ক্যাটাগরি ({QUICK_PROMPTS.length})</option>
+                        <option value="coding">কোডিং ({QUICK_PROMPTS.filter((p) => p.category === 'coding').length})</option>
+                        <option value="writing">লেখালেখি ({QUICK_PROMPTS.filter((p) => p.category === 'writing').length})</option>
+                        <option value="research">গবেষণা ({QUICK_PROMPTS.filter((p) => p.category === 'research').length})</option>
+                        <option value="learning">পড়াশোনা ও শেখা ({QUICK_PROMPTS.filter((p) => p.category === 'learning').length})</option>
+                        <option value="daily">দৈনন্দিন ও জনসেবা ({QUICK_PROMPTS.filter((p) => p.category === 'daily').length})</option>
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400 pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" />
+                    </div>
+                    <span className="hidden sm:inline text-[11px] text-stone-600 dark:text-stone-400">
+                      ক্লিক করে সরাসরি শুরু করুন
+                    </span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {QUICK_PROMPTS.map((p) => (
+                  {(promptCategoryFilter === 'all'
+                    ? QUICK_PROMPTS
+                    : QUICK_PROMPTS.filter((p) => p.category === promptCategoryFilter)
+                  ).map((p) => (
                     <button
                       key={p.id}
                       onClick={() => handleSendMessage(p.prompt)}
@@ -1441,6 +1516,9 @@ export default function App() {
             mode={mode}
             setMode={setMode}
             onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
+            apiStatus={apiStatus}
+            onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
+            onRecheckApiStatus={() => checkGeminiApiStatus(true)}
           />
         </div>
       </div>
@@ -1485,6 +1563,7 @@ export default function App() {
       <HostingDiagnosticModal
         isOpen={hostingModalOpen}
         onClose={() => setHostingModalOpen(false)}
+        onStatusUpdate={setApiStatus}
       />
 
       {/* Citizen & Everyday Services Hub Modal */}

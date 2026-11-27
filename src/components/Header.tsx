@@ -37,7 +37,7 @@ import {
   Headphones,
   Music
 } from 'lucide-react';
-import { AssistantMode } from '../types';
+import { AssistantMode, ApiStatusInfo } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { AppLogo } from './AppLogo';
 import { UserAuthButton } from './UserAuthButton';
@@ -76,6 +76,8 @@ interface HeaderProps {
   activeSessionId?: string;
   isPinned?: boolean;
   onTogglePin?: () => void;
+  apiStatus?: ApiStatusInfo;
+  onCheckApiStatus?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -108,6 +110,8 @@ export const Header: React.FC<HeaderProps> = ({
   activeSessionId,
   isPinned,
   onTogglePin,
+  apiStatus,
+  onCheckApiStatus,
 }) => {
   const musicPlayer = useMusicPlayer();
   const audioPlayer = useAudioPlayer();
@@ -260,9 +264,68 @@ export const Header: React.FC<HeaderProps> = ({
               AI Assistant & Coding Studio
             </h1>
             <p className="text-[10px] text-stone-600 dark:text-stone-400 mt-0.5">
-              বাংলা ও ইংরেজি স্মার্ট সহকারী (Gemini 3.8 Flash)
+              বাংলা ও ইংরেজি স্মার্ট সহকারী (Gemini 4 Hydrogen)
             </p>
           </div>
+          {(() => {
+            const state = apiStatus?.state || 'checking';
+            const badgeCfg =
+              state === 'healthy'
+                ? {
+                    dot: 'bg-emerald-500',
+                    ping: 'bg-emerald-400',
+                    box: 'bg-emerald-50/90 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200/90 dark:border-emerald-800/80 hover:bg-emerald-100/90 dark:hover:bg-emerald-900/50',
+                    label: 'API সচল',
+                    title: `Gemini API সংযুক্ত ও সচল${apiStatus?.latencyMs ? ` (${apiStatus.latencyMs}ms)` : ''} — ক্লিক করে বিস্তারিত দেখুন`,
+                  }
+                : state === 'auth_error'
+                ? {
+                    dot: 'bg-rose-500',
+                    ping: 'bg-rose-400',
+                    box: 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/60',
+                    label: 'API Key ত্রুটি',
+                    title: apiStatus?.message || 'Gemini API Key সমস্যা (403/Auth Error) — ক্লিক করে সমাধান দেখুন',
+                  }
+                : state === 'degraded'
+                ? {
+                    dot: 'bg-amber-500',
+                    ping: 'bg-amber-400',
+                    box: 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50',
+                    label: 'সার্ভার চাপ',
+                    title: apiStatus?.message || 'Gemini API সাময়িক চাপে রয়েছে — ক্লিক করে পুনরায় যাচাই করুন',
+                  }
+                : {
+                    dot: 'bg-amber-400',
+                    ping: 'bg-amber-300',
+                    box: 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-200/80 dark:hover:bg-stone-700',
+                    label: 'যাচাই...',
+                    title: 'Gemini API সংযোগ যাচাই করা হচ্ছে...',
+                  };
+            return (
+              <button
+                id="header-api-status-indicator"
+                type="button"
+                onClick={() => {
+                  if (onOpenHostingDiagnostic) {
+                    onOpenHostingDiagnostic();
+                  } else if (onCheckApiStatus) {
+                    onCheckApiStatus();
+                  }
+                }}
+                title={badgeCfg.title}
+                aria-label={badgeCfg.title}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer shrink-0 ${badgeCfg.box}`}
+              >
+                <span className="relative flex h-2 w-2 shrink-0">
+                  {(state === 'healthy' || state === 'auth_error' || state === 'checking') && (
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${badgeCfg.ping}`} />
+                  )}
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${badgeCfg.dot}`} />
+                </span>
+                <span className="whitespace-nowrap">{badgeCfg.label}</span>
+              </button>
+            );
+          })()}
         </div>
 
         {/* Mode pill */}
@@ -428,10 +491,25 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             id="open-hosting-diagnostic-btn"
             onClick={onOpenHostingDiagnostic}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors shadow-xs"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors shadow-xs cursor-pointer ${
+              apiStatus?.state === 'auth_error'
+                ? 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                : apiStatus?.state === 'degraded'
+                ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+            }`}
             title="হোস্টিং ও জেমিনি এআই ডায়াগনস্টিক"
           >
-            <Server className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                apiStatus?.state === 'auth_error'
+                  ? 'bg-rose-500 animate-pulse'
+                  : apiStatus?.state === 'degraded' || apiStatus?.state === 'checking'
+                  ? 'bg-amber-500 animate-pulse'
+                  : 'bg-emerald-500'
+              }`}
+            />
+            <Server className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">এআই স্ট্যাটাস ও হোস্টিং</span>
           </button>
         )}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { resolveApiUrl } from '../lib/apiBase';
 
 export type VoiceLanguage = 'bn-BD' | 'en-US';
 
@@ -135,7 +136,7 @@ export function useMediaRecorderVoice({
         reader.readAsDataURL(blob);
       });
 
-      const response = await fetch('/api/transcribe', {
+      const response = await fetch(resolveApiUrl('/api/transcribe'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

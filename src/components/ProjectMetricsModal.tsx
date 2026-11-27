@@ -37,6 +37,7 @@ import {
 } from 'recharts';
 import { ChatSession, AssistantMode } from '../types';
 import { PaymentGatewayAttemptsBarChart } from './PaymentGatewayAttemptsBarChart';
+import { resolveApiUrl } from '../lib/apiBase';
 
 interface ProjectMetricsModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ export const ProjectMetricsModal: React.FC<ProjectMetricsModalProps> = ({
     setIsLoadingRepos(true);
     setReposError(null);
     try {
-      const res = await fetch('/api/github/repos');
+      const res = await fetch(resolveApiUrl('/api/github/repos'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {

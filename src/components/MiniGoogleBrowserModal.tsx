@@ -43,6 +43,7 @@ import {
   Languages,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { resolveApiUrl } from '../lib/apiBase';
 import { useAuth } from '../context/AuthContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
@@ -393,7 +394,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
     if (!q) return;
     setIsYtSearching(true);
     try {
-      const res = await fetch('/api/youtube/search', {
+      const res = await fetch(resolveApiUrl('/api/youtube/search'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),
@@ -484,7 +485,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
     if (!urlToRead) return;
     setIsReaderLoading(true);
     try {
-      const res = await fetch(`/api/proxy/reader?url=${encodeURIComponent(urlToRead)}`);
+      const res = await fetch(resolveApiUrl(`/api/proxy/reader?url=${encodeURIComponent(urlToRead)}`));
       if (res.ok) {
         const data = await res.json();
         setReaderData(data);
@@ -547,7 +548,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
     setIsLoading(true);
     setActiveTab('search');
     try {
-      const res = await fetch('/api/mini-browser/search', {
+      const res = await fetch(resolveApiUrl('/api/mini-browser/search'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),
@@ -585,7 +586,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
     setIsLyricsLoading(true);
     setActiveTab('lyrics');
     try {
-      const res = await fetch('/api/mini-browser/lyrics', {
+      const res = await fetch(resolveApiUrl('/api/mini-browser/lyrics'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ songTitle: title, artist, videoId: vid }),
@@ -1978,7 +1979,7 @@ export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
                   <div className="h-[460px] sm:h-[520px] w-full rounded-2xl overflow-hidden border border-stone-800 bg-stone-950 relative shadow-inner">
                     <iframe
                       key={`web-proxy-${activeUrl}-${refreshKey}`}
-                      src={`/api/proxy?url=${encodeURIComponent(activeUrl)}`}
+                      src={resolveApiUrl(`/api/proxy?url=${encodeURIComponent(activeUrl)}`)}
                       title="Web Proxy Viewer"
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                       className="w-full h-full border-0 bg-white"

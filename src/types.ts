@@ -70,3 +70,12 @@ export interface PaymentTransaction {
   description: string;
   disbursedViaGmail?: boolean;
 }
+
+export type ApiConnectionState = 'checking' | 'healthy' | 'auth_error' | 'degraded';
+
+export interface ApiStatusInfo {
+  state: ApiConnectionState;
+  latencyMs?: number;
+  message?: string;
+  checkedAt?: number;
+}

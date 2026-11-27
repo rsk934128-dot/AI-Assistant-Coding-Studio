@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { extractYouTubeVideoId } from '../utils/youtube';
+import { resolveApiUrl } from '../lib/apiBase';
 
 interface MusicPlayerModalProps {
   onAskAIAboutSong?: (prompt: string) => void;
@@ -68,7 +69,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     // It's a song/music search term: search YouTube directly for verified real links!
     setIsLoadingAlternatives(true);
     try {
-      const res = await fetch('/api/youtube/search', {
+      const res = await fetch(resolveApiUrl('/api/youtube/search'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: val }),
@@ -164,7 +165,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
   const handleFindAlternative = async () => {
     setIsLoadingAlternatives(true);
     try {
-      const res = await fetch('/api/youtube/search', {
+      const res = await fetch(resolveApiUrl('/api/youtube/search'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: cleanTitle }),

@@ -19,6 +19,7 @@ import {
 import { ARCHITECTURE_GUIDE } from '../data/prompts';
 import apiArchitectureImg from '../assets/images/api_architecture_graphic_1790066692425.jpg';
 import clusterTrainingImg from '../assets/images/ai_cluster_training_1790066706334.jpg';
+import { resolveApiUrl } from '../lib/apiBase';
 
 interface ArchitectureModalProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({
     setDiagnosticError(null);
     const start = performance.now();
     try {
-      const res = await fetch('/api/health');
+      const res = await fetch(resolveApiUrl('/api/health'));
       const end = performance.now();
       if (res.status === 404) {
         throw new Error('সার্ভার এন্ডপয়েন্ট পাওয়া যায়নি (HTTP 404 Not Found)। ব্যাকএন্ড Express সার্ভার চালু নেই।');

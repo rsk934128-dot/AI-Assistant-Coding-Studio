@@ -23,25 +23,30 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 export const ALLOWED_GEMINI_MODELS = new Set([
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
+  'gemini-4-hydrogen',
+  'gemini-4-neon',
+  'gemini-4-carbon',
+  'gemini-4-argon',
   'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
   'gemini-2.5-flash',
   'gemini-2.5-pro',
   'gemini-3.5-transcribe',
 ]);
 
 export const FALLBACK_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
+  'gemini-4-hydrogen',
   'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
 ];
 
 export function resolveSafeModel(requestedModel?: string): string {
   if (requestedModel && typeof requestedModel === 'string' && ALLOWED_GEMINI_MODELS.has(requestedModel.trim())) {
     return requestedModel.trim();
   }
-  return 'gemini-3.8-flash';
+  return 'gemini-4-hydrogen';
 }
 
 process.on('uncaughtException', (err: any) => {
@@ -280,14 +285,92 @@ app.all(['/api', '/api/'], (req, res) => {
 });
 
 
-// Helper to extract available Gemini API key exclusively from server-side environment variables
+// Helper to extract all unique candidate Gemini API keys from server-side environment variables
+const GEMINI_KEY_ENV_NAMES = ['GEMINI_API_KEY', 'GEMINI_API', 'GOOGLE_API_KEY', 'API_KEY'] as const;
+const REVOKED_KEY_TTL_MS = 10 * 60 * 1000;
+const revokedKeyHashes = new Map<string, number>();
+let preferredWorkingKeyHash: string | null = null;
+
+function hashApiKey(key: string): string {
+  return crypto.createHash('sha256').update(key).digest('hex');
+}
+
+export function markKeyAsRevoked(key?: string): void {
+  if (!key) return;
+  const h = hashApiKey(key);
+  revokedKeyHashes.set(h, Date.now());
+  if (preferredWorkingKeyHash === h) {
+    preferredWorkingKeyHash = null;
+  }
+}
+
+export function markKeyAsWorking(key?: string): void {
+  if (!key) return;
+  const h = hashApiKey(key);
+  revokedKeyHashes.delete(h);
+  preferredWorkingKeyHash = h;
+}
+
+function isKeyRecentlyRevoked(key: string): boolean {
+  const h = hashApiKey(key);
+  const ts = revokedKeyHashes.get(h);
+  if (!ts) return false;
+  if (Date.now() - ts > REVOKED_KEY_TTL_MS) {
+    revokedKeyHashes.delete(h);
+    return false;
+  }
+  return true;
+}
+
+function getAllUniqueEnvKeys(): Array<{ envName: string; key: string }> {
+  const seen = new Set<string>();
+  const all: Array<{ envName: string; key: string }> = [];
+  for (const envName of GEMINI_KEY_ENV_NAMES) {
+    const val = (process.env[envName] || '').trim();
+    if (val && !seen.has(val)) {
+      seen.add(val);
+      all.push({ envName, key: val });
+    }
+  }
+  return all;
+}
+
+export function getCandidateGeminiApiKeys(): Array<{ envName: string; key: string }> {
+  const all = getAllUniqueEnvKeys();
+  if (all.length <= 1) return all;
+
+  const preferred: Array<{ envName: string; key: string }> = [];
+  const healthy: Array<{ envName: string; key: string }> = [];
+  const revoked: Array<{ envName: string; key: string }> = [];
+
+  for (const item of all) {
+    const h = hashApiKey(item.key);
+    if (preferredWorkingKeyHash && h === preferredWorkingKeyHash) {
+      preferred.push(item);
+    } else if (isKeyRecentlyRevoked(item.key)) {
+      revoked.push(item);
+    } else {
+      healthy.push(item);
+    }
+  }
+
+  const active = [...preferred, ...healthy];
+  return active.length > 0 ? active : revoked;
+}
+
+export function getConfiguredGeminiKeySources(): string[] {
+  return GEMINI_KEY_ENV_NAMES.filter((envName) => Boolean((process.env[envName] || '').trim()));
+}
+
+export function getRevokedGeminiKeySources(): string[] {
+  return getAllUniqueEnvKeys()
+    .filter((item) => isKeyRecentlyRevoked(item.key))
+    .map((item) => item.envName);
+}
+
 function getEffectiveGeminiApiKey(): string {
-  return (
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.API_KEY ||
-    ''
-  ).trim();
+  const candidates = getCandidateGeminiApiKeys();
+  return candidates.length > 0 ? candidates[0].key : '';
 }
 
 // Detect unrecoverable authentication or permission errors to fail-fast
@@ -608,8 +691,8 @@ export async function safeProxyFetch(
 }
 
 // Lazy GoogleGenAI client
-function getAIClient() {
-  const apiKey = getEffectiveGeminiApiKey();
+function getAIClient(apiKeyOverride?: string) {
+  const apiKey = (apiKeyOverride || getEffectiveGeminiApiKey()).trim();
   if (!apiKey) {
     throw new Error(
       'GEMINI_API_KEY is not configured in environment variables. Please set GEMINI_API_KEY in your hosting dashboard (Cloud Run, Render, Railway, Vercel, etc.).'
@@ -625,17 +708,38 @@ function getAIClient() {
   });
 }
 
+function getCandidateAIClients(primaryAi?: any): Array<{ envName: string; key: string; client: any }> {
+  const candidates = getCandidateGeminiApiKeys();
+  if (candidates.length === 0) {
+    if (primaryAi) return [{ envName: 'CUSTOM', key: '', client: primaryAi }];
+    throw new Error(
+      'GEMINI_API_KEY is not configured in environment variables. Please set GEMINI_API_KEY in your hosting dashboard (Cloud Run, Render, Railway, Vercel, etc.).'
+    );
+  }
+  return candidates.map((c, idx) => ({
+    envName: c.envName,
+    key: c.key,
+    client: idx === 0 && primaryAi ? primaryAi : getAIClient(c.key),
+  }));
+}
+
 // Health check endpoint with hosting diagnostics
 app.all(['/api/health', '/api/health/'], (req, res) => {
   try {
-    const apiKey = getEffectiveGeminiApiKey();
+    const candidates = getCandidateGeminiApiKeys();
+    const sources = getConfiguredGeminiKeySources();
+    const revokedSources = getRevokedGeminiKeySources();
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.json({
       success: true,
       status: 'ok',
-      hasApiKey: Boolean(apiKey && apiKey.length > 0),
+      hasApiKey: candidates.length > 0,
+      configuredKeySources: sources,
+      activeKeySource: candidates[0]?.envName || null,
+      revokedKeySources: revokedSources,
+      distinctKeyCount: candidates.length,
       port: PORT,
       nodeEnv: process.env.NODE_ENV || 'development',
       time: new Date().toISOString(),
@@ -1070,7 +1174,11 @@ function formatFriendlyErrorMessage(err: any): string {
     lower.includes('leaked') ||
     lower.includes('reported as leaked')
   ) {
-    return '⚠️ [গুগল সিকিউরিটি অ্যালার্ট: Gemini API Key বাতিলকৃত]\n\n❓ কেন এই মেসেজটি বারবার আসছে:\nআপনার অ্যাকাউন্টে বর্তমানে সংযুক্ত Gemini API Key-টি ইন্টারনেটে লিক বা এক্সপোজ হিসেবে শনাক্ত করে গুগল স্থায়ীভাবে বাতিল (Revoke/Blacklist) করে দিয়েছে। ফলে আপনি যখনই কোনো প্রশ্ন বা মেসেজ পাঠাচ্ছেন, সার্ভার উত্তর তৈরি করতে গুগলে রিকোয়েস্ট পাঠানোমাত্রই গুগল থেকে তাৎক্ষণিক "Your API key was reported as leaked" ব্লক আসে। এটি কোনো অ্যাপ বা চ্যাট কোডের পুনরাবৃত্তি বাগ নয়, বরং একটি বাতিল চাবির কারণে প্রতিবার ব্যর্থ হওয়া স্বাভাবিক নিরাপত্তা ফলাফল।\n\n✅ স্থায়ীভাবে ঠিক করার পদ্ধতি:\n১. Google AI Studio-তে যান: https://aistudio.google.com/apikey\n২. একটি নতুন সতেজ API Key তৈরি করুন ("Create API key")।\n৩. এই অ্যাপের Settings > Secrets প্যানেলে গিয়ে অথবা হোস্টিং ড্যাশবোর্ডের Environment Variables-এ "GEMINI_API_KEY" আপডেট করুন।';
+    const sources = getConfiguredGeminiKeySources();
+    const sourcesNote = sources.length > 0
+      ? `\n🔎 বর্তমানে সার্ভারে সক্রিয় Secret ভ্যারিয়েবল: ${sources.join(', ')} (এগুলোর মধ্যে থাকা কী-গুলো গুগল বাতিল করেছে বা অন্য নামে পুরনো কী রয়ে গেছে)।`
+      : '';
+    return `⚠️ [গুগল সিকিউরিটি অ্যালার্ট: Gemini API Key বাতিলকৃত]\n\n❓ কেন নতুন কী দেওয়ার পরও এই মেসেজ আসতে পারে:\n১. আপনার অ্যাকাউন্টের মূল "GEMINI_API_KEY" (অথবা পুরনো অন্য Secret যেমন "GEMINI_API") এখনো পূর্বের বাতিলকৃত চাবিতে সেট করা থাকলে সার্ভার সেটিই ব্যবহার করে এবং গুগল তাৎক্ষণিক "Your API key was reported as leaked" ব্লক দেয়।\n২. কোনো API Key পাবলিক জায়গায়, কোডে বা চ্যাটে পেস্ট করলে গুগল স্বয়ংক্রিয়ভাবে সেটি লিক হিসেবে বাতিল করে দেয়।${sourcesNote}\n\n✅ স্থায়ীভাবে ঠিক করার পদ্ধতি:\n১. Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি একদম নতুন API Key তৈরি করুন (কোথাও শেয়ার বা পেস্ট করবেন না)।\n২. এই অ্যাপের Settings > Secrets প্যানেলে গিয়ে সরাসরি "GEMINI_API_KEY" এডিট করে নতুন চাবিটি বসান এবং পুরনো বা অতিরিক্ত "GEMINI_API" নামের কোনো Secret থাকলে তা মুছে ফেলুন বা আপডেট করুন।`;
   }
 
   if (
@@ -1120,7 +1228,7 @@ async function fetchStreamWithResilience(
   contents: any[],
   systemInstruction: string,
   enableSearch: boolean,
-  modelPreference = 'gemini-3.8-flash'
+  modelPreference = 'gemini-4-hydrogen'
 ) {
   const safeModel = resolveSafeModel(modelPreference);
   const modelsToTry = [
@@ -1128,61 +1236,83 @@ async function fetchStreamWithResilience(
     ...FALLBACK_MODELS,
   ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
 
-  let searchAvailable = enableSearch;
+  const clientCandidates = getCandidateAIClients(ai);
   let lastError: any = null;
 
-  for (const model of modelsToTry) {
-    // If search is requested and currently available, attempt it
-    if (searchAvailable) {
+  for (let cIdx = 0; cIdx < clientCandidates.length; cIdx++) {
+    const { envName, key, client } = clientCandidates[cIdx];
+    const hasMoreKeys = cIdx < clientCandidates.length - 1;
+    let searchAvailable = enableSearch;
+    let keyFailedAuth = false;
+
+    for (const model of modelsToTry) {
+      // If search is requested and currently available, attempt it
+      if (searchAvailable) {
+        try {
+          const stream = await client.models.generateContentStream({
+            model,
+            contents,
+            config: { systemInstruction, tools: [{ googleSearch: {} }] },
+          });
+          markKeyAsWorking(key);
+          return { stream, modelUsed: model, hadSearch: true, keySource: envName };
+        } catch (err: any) {
+          lastError = err;
+          if (isUnrecoverableAuthError(err)) {
+            markKeyAsRevoked(key);
+            if (!hasMoreKeys) {
+              console.warn(`[Gemini Auth] All key sources exhausted (${envName}).`);
+            }
+            keyFailedAuth = true;
+            break;
+          }
+          const errStr = String(err?.message || err);
+          const isHighDemandOrRate =
+            errStr.includes('429') ||
+            errStr.includes('quota') ||
+            errStr.includes('RESOURCE_EXHAUSTED') ||
+            errStr.includes('503') ||
+            errStr.includes('UNAVAILABLE');
+          if (!isHighDemandOrRate) {
+            // Tool error (e.g. search unsupported on model): disable search for fallback
+            searchAvailable = false;
+          } else {
+            await sleep(300);
+          }
+        }
+      }
+
+      if (keyFailedAuth) break;
+
+      // Try standard prompt generation without search tools
       try {
-        const stream = await ai.models.generateContentStream({
+        const stream = await client.models.generateContentStream({
           model,
           contents,
-          config: { systemInstruction, tools: [{ googleSearch: {} }] },
+          config: { systemInstruction },
         });
-        return { stream, modelUsed: model, hadSearch: true };
+        markKeyAsWorking(key);
+        return { stream, modelUsed: model, hadSearch: false, keySource: envName };
       } catch (err: any) {
         lastError = err;
-        // Unrecoverable authorization error: Fail-fast immediately without futile retries
         if (isUnrecoverableAuthError(err)) {
-          throw err;
+          markKeyAsRevoked(key);
+          if (!hasMoreKeys) {
+            console.warn(`[Gemini Auth] All key sources exhausted (${envName}).`);
+          }
+          keyFailedAuth = true;
+          break;
         }
-        // Search tool failed (e.g. quota limit on search API). Disable search for subsequent attempts.
-        searchAvailable = false;
         const errStr = String(err?.message || err);
         if (
           errStr.includes('429') ||
           errStr.includes('quota') ||
           errStr.includes('RESOURCE_EXHAUSTED') ||
-          errStr.includes('503')
+          errStr.includes('503') ||
+          errStr.includes('UNAVAILABLE')
         ) {
-          await sleep(400);
+          await sleep(300);
         }
-      }
-    }
-
-    // Try standard prompt generation without search tools
-    try {
-      const stream = await ai.models.generateContentStream({
-        model,
-        contents,
-        config: { systemInstruction },
-      });
-      return { stream, modelUsed: model, hadSearch: false };
-    } catch (err: any) {
-      lastError = err;
-      // Unrecoverable authorization error: Fail-fast immediately
-      if (isUnrecoverableAuthError(err)) {
-        throw err;
-      }
-      const errStr = String(err?.message || err);
-      if (
-        errStr.includes('429') ||
-        errStr.includes('quota') ||
-        errStr.includes('RESOURCE_EXHAUSTED') ||
-        errStr.includes('503')
-      ) {
-        await sleep(400);
       }
     }
   }
@@ -1195,7 +1325,7 @@ async function fetchContentWithResilience(
   contents: any[],
   systemInstruction: string,
   enableSearch: boolean,
-  modelPreference = 'gemini-3.8-flash'
+  modelPreference = 'gemini-4-hydrogen'
 ) {
   const safeModel = resolveSafeModel(modelPreference);
   const modelsToTry = [
@@ -1203,56 +1333,80 @@ async function fetchContentWithResilience(
     ...FALLBACK_MODELS,
   ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
 
-  let searchAvailable = enableSearch;
+  const clientCandidates = getCandidateAIClients(ai);
   let lastError: any = null;
 
-  for (const model of modelsToTry) {
-    if (searchAvailable) {
+  for (let cIdx = 0; cIdx < clientCandidates.length; cIdx++) {
+    const { envName, key, client } = clientCandidates[cIdx];
+    const hasMoreKeys = cIdx < clientCandidates.length - 1;
+    let searchAvailable = enableSearch;
+    let keyFailedAuth = false;
+
+    for (const model of modelsToTry) {
+      if (searchAvailable) {
+        try {
+          const response = await client.models.generateContent({
+            model,
+            contents,
+            config: { systemInstruction, tools: [{ googleSearch: {} }] },
+          });
+          markKeyAsWorking(key);
+          return response;
+        } catch (err: any) {
+          lastError = err;
+          if (isUnrecoverableAuthError(err)) {
+            markKeyAsRevoked(key);
+            if (!hasMoreKeys) {
+              console.warn(`[Gemini Auth] All key sources exhausted (${envName}).`);
+            }
+            keyFailedAuth = true;
+            break;
+          }
+          const errStr = String(err?.message || err);
+          const isHighDemandOrRate =
+            errStr.includes('429') ||
+            errStr.includes('quota') ||
+            errStr.includes('RESOURCE_EXHAUSTED') ||
+            errStr.includes('503') ||
+            errStr.includes('UNAVAILABLE');
+          if (!isHighDemandOrRate) {
+            searchAvailable = false;
+          } else {
+            await sleep(300);
+          }
+        }
+      }
+
+      if (keyFailedAuth) break;
+
       try {
-        const response = await ai.models.generateContent({
+        const response = await client.models.generateContent({
           model,
           contents,
-          config: { systemInstruction, tools: [{ googleSearch: {} }] },
+          config: { systemInstruction },
         });
+        markKeyAsWorking(key);
         return response;
       } catch (err: any) {
         lastError = err;
         if (isUnrecoverableAuthError(err)) {
-          throw err;
+          markKeyAsRevoked(key);
+          if (!hasMoreKeys) {
+            console.warn(`[Gemini Auth] All key sources exhausted (${envName}).`);
+          }
+          keyFailedAuth = true;
+          break;
         }
-        searchAvailable = false;
         const errStr = String(err?.message || err);
         if (
           errStr.includes('429') ||
           errStr.includes('quota') ||
           errStr.includes('RESOURCE_EXHAUSTED') ||
-          errStr.includes('503')
+          errStr.includes('503') ||
+          errStr.includes('UNAVAILABLE')
         ) {
-          await sleep(400);
+          await sleep(300);
         }
-      }
-    }
-
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents,
-        config: { systemInstruction },
-      });
-      return response;
-    } catch (err: any) {
-      lastError = err;
-      if (isUnrecoverableAuthError(err)) {
-        throw err;
-      }
-      const errStr = String(err?.message || err);
-      if (
-        errStr.includes('429') ||
-        errStr.includes('quota') ||
-        errStr.includes('RESOURCE_EXHAUSTED') ||
-        errStr.includes('503')
-      ) {
-        await sleep(400);
       }
     }
   }
@@ -1264,12 +1418,33 @@ async function fetchContentWithResilience(
 app.all('/api/health/test', async (req, res) => {
   const startTime = Date.now();
   try {
-    const apiKey = getEffectiveGeminiApiKey();
-    if (!apiKey) {
+    const candidates = getCandidateGeminiApiKeys();
+    const configuredSources = getConfiguredGeminiKeySources();
+    const revokedSources = getRevokedGeminiKeySources();
+    if (candidates.length === 0) {
       return res.status(200).json({
         success: false,
         status: 'missing_key',
+        configuredKeySources: configuredSources,
         error: '⚠️ Gemini API Key কনফিগার করা নেই। অনুগ্রহ করে Settings > Secrets প্যানেল থেকে GEMINI_API_KEY সেট করুন।',
+      });
+    }
+
+    // Prevent redundant upstream 403 calls if all configured keys are already cached as revoked
+    if (
+      req.query.lightweight === '1' &&
+      candidates.length > 0 &&
+      revokedSources.length >= candidates.length &&
+      candidates.every((c) => isKeyRecentlyRevoked(c.key))
+    ) {
+      return res.status(200).json({
+        success: false,
+        latencyMs: Date.now() - startTime,
+        configuredKeySources: configuredSources,
+        revokedKeySources: revokedSources,
+        keyStatus: 'revoked_or_leaked',
+        cached: true,
+        error: formatFriendlyErrorMessage({ message: 'Your API key was reported as leaked.' }),
       });
     }
 
@@ -1282,18 +1457,23 @@ app.all('/api/health/test', async (req, res) => {
       'gemini-3.1-flash-lite'
     );
     const latency = Date.now() - startTime;
+    const activeCandidates = getCandidateGeminiApiKeys();
     return res.json({
       success: true,
       latencyMs: latency,
+      configuredKeySources: configuredSources,
+      activeKeySource: activeCandidates[0]?.envName || null,
+      revokedKeySources: getRevokedGeminiKeySources(),
       reply: response.text?.trim() || 'OK',
     });
   } catch (err: any) {
     const latency = Date.now() - startTime;
     const isAuthErr = isUnrecoverableAuthError(err);
     const friendlyError = formatFriendlyErrorMessage(err);
+    const configuredSources = getConfiguredGeminiKeySources();
 
     if (isAuthErr) {
-      console.warn('[Gemini Auth Status]: API key revoked or reported as leaked. User needs to update key in Settings > Secrets.');
+      console.warn(`[Gemini Auth Status]: All configured key sources (${configuredSources.join(', ')}) were rejected or reported as leaked.`);
     } else {
       console.warn('API health test notice:', err?.message || err);
     }
@@ -1301,11 +1481,12 @@ app.all('/api/health/test', async (req, res) => {
     return res.status(200).json({
       success: false,
       latencyMs: latency,
+      configuredKeySources: configuredSources,
       keyStatus: isAuthErr ? 'revoked_or_leaked' : 'error',
       error: friendlyError,
       rawMessage: err?.message || String(err),
       instructions: isAuthErr
-        ? 'Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি নতুন API Key তৈরি করে Settings > Secrets প্যানেল বা Environment Variables-এ GEMINI_API_KEY আপডেট করুন।'
+        ? `বর্তমানে ${configuredSources.join(', ')} ভ্যারিয়েবলে থাকা কী-গুলো গুগল দ্বারা বাতিল করা হয়েছে। Google AI Studio (https://aistudio.google.com/apikey) থেকে একটি নতুন API Key তৈরি করে Settings > Secrets প্যানেলে সরাসরি "GEMINI_API_KEY" আপডেট করুন এবং পুরনো বাতিল কী-গুলো মুছে ফেলুন।`
         : undefined,
     });
   }
@@ -1344,41 +1525,56 @@ app.post('/api/transcribe', rateLimiterMiddleware(30, 60000), async (req, res) =
       : 'Transcribe this spoken audio accurately. Output ONLY the verbatim transcribed text without quotes, formatting, or commentary.';
 
     // Try gemini-3.5-transcribe first (dedicated audio transcription model from SKILL.md),
-    // fallback to gemini-3.8-flash / gemini-flash-latest
-    const modelsToTry = ['gemini-3.5-transcribe', 'gemini-3.8-flash', 'gemini-flash-latest'];
+    // fallback to gemini-4-hydrogen / gemini-3.1-flash-lite / gemini-flash-latest
+    const modelsToTry = ['gemini-3.5-transcribe', 'gemini-4-hydrogen', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+    const clientCandidates = getCandidateAIClients(ai);
     let text = '';
     let lastErr: any = null;
 
-    for (const model of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  inlineData: {
-                    data: base64Audio,
-                    mimeType: cleanMimeType,
+    for (let cIdx = 0; cIdx < clientCandidates.length; cIdx++) {
+      const { envName, key, client } = clientCandidates[cIdx];
+      const hasMoreKeys = cIdx < clientCandidates.length - 1;
+      let keyFailedAuth = false;
+      for (const model of modelsToTry) {
+        try {
+          const response = await client.models.generateContent({
+            model,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      data: base64Audio,
+                      mimeType: cleanMimeType,
+                    },
                   },
-                },
-                {
-                  text: promptText,
-                },
-              ],
-            },
-          ],
-        });
-        text = response.text?.trim() || '';
-        if (text) break;
-      } catch (err: any) {
-        lastErr = err;
-        if (isUnrecoverableAuthError(err)) {
-          throw err;
+                  {
+                    text: promptText,
+                  },
+                ],
+              },
+            ],
+          });
+          text = response.text?.trim() || '';
+          if (text) {
+            markKeyAsWorking(key);
+            break;
+          }
+        } catch (err: any) {
+          lastErr = err;
+          if (isUnrecoverableAuthError(err)) {
+            markKeyAsRevoked(key);
+            if (!hasMoreKeys) {
+              console.warn(`[Gemini Auth] Transcription key sources exhausted (${envName}).`);
+            }
+            keyFailedAuth = true;
+            break;
+          }
+          console.warn(`Model ${model} transcription attempt notice:`, err?.message || err);
         }
-        console.warn(`Model ${model} transcription attempt failed:`, err?.message || err);
       }
+      if (text || !keyFailedAuth) break;
     }
 
     if (!text && lastErr) {
@@ -1410,7 +1606,7 @@ app.post('/api/chat/stream', rateLimiterMiddleware(60, 60000), async (req, res) 
       systemInstruction,
       enableSearch = true,
       mode = 'general',
-      model = 'gemini-3.8-flash',
+      model = 'gemini-4-hydrogen',
     } = req.body;
 
     if (!prompt && (!messages || messages.length === 0)) {
@@ -1608,7 +1804,7 @@ When code is requested, provide clean, idiomatic, runnable code with clear comme
       formattedContents,
       effectiveSystemInstruction,
       enableSearch,
-      model || 'gemini-3.8-flash'
+      model || 'gemini-4-hydrogen'
     );
 
     let accumulatedGrounding: any[] = [];
@@ -1699,7 +1895,7 @@ app.post('/api/chat', async (req, res) => {
       systemInstruction,
       enableSearch = true,
       mode = 'general',
-      model = 'gemini-3.8-flash',
+      model = 'gemini-4-hydrogen',
     } = req.body;
 
     const ai = getAIClient();
@@ -1739,7 +1935,7 @@ Provide thoughtful, well-structured answers with code examples, clear explanatio
       formattedContents,
       effectiveSystemInstruction,
       enableSearch,
-      model || 'gemini-3.8-flash'
+      model || 'gemini-4-hydrogen'
     );
 
     const candidate = response.candidates?.[0];
@@ -1752,8 +1948,8 @@ Provide thoughtful, well-structured answers with code examples, clear explanatio
       searchQueries,
     });
   } catch (error: any) {
-    console.error('Error in /api/chat:', error);
-    res.status(500).json({ error: error?.message || 'Server error occurred.' });
+    console.error('Error in /api/chat:', error?.message || error);
+    res.status(500).json({ error: formatFriendlyErrorMessage(error) });
   }
 });
 
@@ -1791,7 +1987,7 @@ Assistant response:
       [{ role: 'user', parts: [{ text: prompt }] }],
       'You generate clear, concise 3-6 word conversation titles.',
       false, // search disabled for fast, cheap title generation
-      'gemini-3.8-flash'
+      'gemini-4-hydrogen'
     );
 
     let generatedTitle = response.text || '';
@@ -2135,7 +2331,7 @@ CRITICAL: Output ONLY valid JSON, with no markdown code fences or backticks.`;
       [{ role: 'user', parts: [{ text: `Search Google for: "${safeQuery}"` }] }],
       systemPrompt,
       true, // enable Google Search Grounding!
-      'gemini-3.8-flash'
+      'gemini-4-hydrogen'
     );
 
     const timeoutPromise = new Promise((_, reject) =>
@@ -2195,7 +2391,7 @@ app.post('/api/mini-browser/lyrics', async (req, res) => {
       [{ role: 'user', parts: [{ text: `Provide lyrics, artist info, and details for the song: "${query}" (Artist: ${artist || 'Unknown'})` }] }],
       systemPrompt,
       true,
-      'gemini-3.8-flash'
+      'gemini-4-hydrogen'
     );
 
     res.json({
@@ -2291,7 +2487,7 @@ app.post('/api/youtube/search', async (req, res) => {
       [{ role: 'user', parts: [{ text: `Search YouTube videos for: "${trimmedQuery}"` }] }],
       systemPrompt,
       true,
-      'gemini-3.8-flash'
+      'gemini-4-hydrogen'
     );
 
     const candidate = (response as any)?.candidates?.[0];
@@ -2411,14 +2607,35 @@ Respond ONLY with valid JSON in this exact structure:
 }
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.25,
-      },
-    });
+    let response: any = null;
+    let lastAgentErr: any = null;
+    for (const { key, client } of getCandidateAIClients(ai)) {
+      let keyFailed = false;
+      for (const m of FALLBACK_MODELS) {
+        try {
+          response = await client.models.generateContent({
+            model: m,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+              responseMimeType: 'application/json',
+              ...(m.startsWith('gemini-4-') ? {} : { temperature: 0.25 }),
+            },
+          });
+          markKeyAsWorking(key);
+          break;
+        } catch (err: any) {
+          lastAgentErr = err;
+          if (isUnrecoverableAuthError(err)) {
+            markKeyAsRevoked(key);
+            keyFailed = true;
+            break;
+          }
+          await sleep(250);
+        }
+      }
+      if (response || !keyFailed) break;
+    }
+    if (!response) throw lastAgentErr || new Error('Agent evaluation failed.');
 
     const parsed = JSON.parse(response.text || '{}');
     res.json(parsed);
@@ -2488,14 +2705,35 @@ Respond ONLY with valid JSON in this exact structure:
 }
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-      },
-    });
+    let response: any = null;
+    let lastSolveErr: any = null;
+    for (const { key, client } of getCandidateAIClients(ai)) {
+      let keyFailed = false;
+      for (const m of FALLBACK_MODELS) {
+        try {
+          response = await client.models.generateContent({
+            model: m,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+              responseMimeType: 'application/json',
+              ...(m.startsWith('gemini-4-') ? {} : { temperature: 0.2 }),
+            },
+          });
+          markKeyAsWorking(key);
+          break;
+        } catch (err: any) {
+          lastSolveErr = err;
+          if (isUnrecoverableAuthError(err)) {
+            markKeyAsRevoked(key);
+            keyFailed = true;
+            break;
+          }
+          await sleep(250);
+        }
+      }
+      if (response || !keyFailed) break;
+    }
+    if (!response) throw lastSolveErr || new Error('Agent solve task failed.');
 
     const parsed = JSON.parse(response.text || '{}');
     res.json(parsed);
